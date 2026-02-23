@@ -38,7 +38,7 @@ services:
       DEBUG: "false"
       CORS_ORIGINS: https://lavka.glorysyntax.live,http://lavka.glorysyntax.live
     volumes:
-      - backend_data:/app/data
+      - ./data:/data:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,6 +66,4 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
-  backend_data:
     driver: local

@@ -17,7 +17,9 @@ from config import Settings
 logger = logging.getLogger(__name__)
 
 # Путь к папке с историческими данными
-HISTORICAL_DATA_PATH = Path(__file__).parent.parent.parent / "data"
+# При запуске в Docker: /data (примонтированная папка)
+# При локальной разработке: ../../data относительно этого файла
+HISTORICAL_DATA_PATH = Path("/data") if Path("/data").exists() else Path(__file__).parent.parent.parent / "data"
 
 # Маппинг ID серверов на имена файлов
 SERVER_FILE_MAPPING = {
