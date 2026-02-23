@@ -124,25 +124,26 @@ async def generate_and_download_config(
         await config_generator.session.commit()
 
     # Генерируем JSON в формате для бота (cp1251)
-    # Убираем лишние поля, оставляем только нужные для бота
+    # Строго следуем формату required.json
     bot_config = []
     for item in config_items:
         item_dict = {
-            "price": item.price,
+            "price": str(item.price),  # Всегда строка
             "maximum": item.maximum,
             "enabled": item.enabled,
             "name": item.name,
-            "price_vc": item.price_vc,
-            "count": item.count,
+            "price_vc": item.price_vc,  # Может быть int или str
+            "count": item.count,  # Может быть int или str
             "slot_count": item.slot_count,
             "slot_id": item.slot_id,
             "position_tab": item.position_tab,
             "all_count": item.all_count,
         }
-        # Добавляем continue и count_maximum только если они есть
+        # Добавляем continue только если есть
         if hasattr(item, 'continue_') and item.continue_:
-            item_dict["continue"] = item.continue_
-        if hasattr(item, 'count_maximum'):
+            item_dict["continue"] = str(item.continue_)
+        # Добавляем count_maximum только если не 0
+        if hasattr(item, 'count_maximum') and item.count_maximum:
             item_dict["count_maximum"] = item.count_maximum
         bot_config.append(item_dict)
     
@@ -250,14 +251,38 @@ async def generate_config_by_liquidity(
         logger.error(f"Error generating config by liquidity: {e}")
         raise HTTPException(status_code=500, detail="Error generating config")
 
-    config_data = [item.model_dump(mode="json", by_alias=True) for item in config_items]
+    # Генерируем JSON в формате для бота (cp1251) - строго следуем required.json
+    bot_config = []
+    for item in config_items:
+        item_dict = {
+            "price": str(item.price),
+            "maximum": item.maximum,
+            "enabled": item.enabled,
+            "name": item.name,
+            "price_vc": item.price_vc,
+            "count": item.count,
+            "slot_count": item.slot_count,
+            "slot_id": item.slot_id,
+            "position_tab": item.position_tab,
+            "all_count": item.all_count,
+        }
+        if hasattr(item, 'continue_') and item.continue_:
+            item_dict["continue"] = str(item.continue_)
+        if hasattr(item, 'count_maximum') and item.count_maximum:
+            item_dict["count_maximum"] = item.count_maximum
+        bot_config.append(item_dict)
+    
+    json_str = json.dumps(bot_config, ensure_ascii=False, indent=4)
+    
+    logger.info(f"Генерация JSON конфига (liquidity): {len(config_items)} предметов, размер: {len(json_str)} байт")
 
-    return {
-        "config": config_data,
-        "stats": stats,
-        "server_name": get_server_name(server_id),
-        "mode": mode.value,
-    }
+    return Response(
+        content=json_str.encode("cp1251"),
+        media_type="application/json; charset=cp1251",
+        headers={
+            "Content-Disposition": f'attachment; filename="config_{mode.value.lower()}_liquidity_top{top_count}_{server_id}.json"',
+        },
+    )
 
 
 @router.post("/generate/category")
@@ -287,14 +312,38 @@ async def generate_config_by_category(
         logger.error(f"Error generating config by category: {e}")
         raise HTTPException(status_code=500, detail="Error generating config")
 
-    config_data = [item.model_dump(mode="json", by_alias=True) for item in config_items]
+    # Генерируем JSON в формате для бота (cp1251) - строго следуем required.json
+    bot_config = []
+    for item in config_items:
+        item_dict = {
+            "price": str(item.price),
+            "maximum": item.maximum,
+            "enabled": item.enabled,
+            "name": item.name,
+            "price_vc": item.price_vc,
+            "count": item.count,
+            "slot_count": item.slot_count,
+            "slot_id": item.slot_id,
+            "position_tab": item.position_tab,
+            "all_count": item.all_count,
+        }
+        if hasattr(item, 'continue_') and item.continue_:
+            item_dict["continue"] = str(item.continue_)
+        if hasattr(item, 'count_maximum') and item.count_maximum:
+            item_dict["count_maximum"] = item.count_maximum
+        bot_config.append(item_dict)
+    
+    json_str = json.dumps(bot_config, ensure_ascii=False, indent=4)
+    
+    logger.info(f"Генерация JSON конфига (category): {len(config_items)} предметов, размер: {len(json_str)} байт")
 
-    return {
-        "config": config_data,
-        "stats": stats,
-        "server_name": get_server_name(server_id),
-        "mode": mode.value,
-    }
+    return Response(
+        content=json_str.encode("cp1251"),
+        media_type="application/json; charset=cp1251",
+        headers={
+            "Content-Disposition": f'attachment; filename="config_{mode.value.lower()}_category_{category}_{server_id}.json"',
+        },
+    )
 
 
 @router.get("/categories")
