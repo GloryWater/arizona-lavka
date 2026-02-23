@@ -122,13 +122,15 @@ async def generate_and_download_config(
         )
         config_generator.session.add(config_history)
         await config_generator.session.commit()
-    
-    # Генерируем JSON
+
+    # Генерируем JSON в UTF-8
     json_str = json.dumps(config_data, ensure_ascii=False, indent=4)
-    
+
+    logger.info(f"Генерация JSON конфига: {len(config_items)} предметов, размер JSON: {len(json_str)} байт")
+
     return Response(
-        content=json_str.encode("cp1251"),
-        media_type="application/json",
+        content=json_str.encode("utf-8"),
+        media_type="application/json; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="config_{request.mode.value.lower()}_{request.server_id}.json"',
         },
