@@ -7,6 +7,7 @@
 
 import json
 import logging
+import random
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
@@ -145,11 +146,16 @@ async def generate_and_download_config(
 
     logger.info(f"Генерация JSON конфига: {len(config_items)} предметов, размер JSON: {len(json_str)} байт")
 
+    # Формат имени: action_server_numbers.json
+    server_name_file = get_server_name(request.server_id).lower().replace(" ", "_")
+    action_file = "sell" if request.mode.value == "SELL" else "buy"
+    random_num = random.randint(1000, 9999999)
+    
     return Response(
         content=json_str.encode("cp1251"),
         media_type="application/json; charset=cp1251",
         headers={
-            "Content-Disposition": f'attachment; filename="config_{request.mode.value.lower()}_{request.server_id}.json"',
+            "Content-Disposition": f'attachment; filename="{action_file}_{server_name_file}_{random_num}.json"',
         },
     )
 
@@ -266,11 +272,16 @@ async def generate_config_by_liquidity(
     
     logger.info(f"Генерация JSON конфига (liquidity): {len(config_items)} предметов, размер: {len(json_str)} байт")
 
+    # Формат имени: action_server_numbers.json
+    server_name_file = get_server_name(server_id).lower().replace(" ", "_")
+    action_file = "sell" if mode.value == "SELL" else "buy"
+    random_num = random.randint(1000, 9999999)
+
     return Response(
         content=json_str.encode("cp1251"),
         media_type="application/json; charset=cp1251",
         headers={
-            "Content-Disposition": f'attachment; filename="config_{mode.value.lower()}_liquidity_top{top_count}_{server_id}.json"',
+            "Content-Disposition": f'attachment; filename="{action_file}_{server_name_file}_{random_num}.json"',
         },
     )
 
@@ -323,11 +334,16 @@ async def generate_config_by_category(
     
     logger.info(f"Генерация JSON конфига (category): {len(config_items)} предметов, размер: {len(json_str)} байт")
 
+    # Формат имени: action_server_numbers.json
+    server_name_file = get_server_name(server_id).lower().replace(" ", "_")
+    action_file = "sell" if mode.value == "SELL" else "buy"
+    random_num = random.randint(1000, 9999999)
+
     return Response(
         content=json_str.encode("cp1251"),
         media_type="application/json; charset=cp1251",
         headers={
-            "Content-Disposition": f'attachment; filename="config_{mode.value.lower()}_category_{category}_{server_id}.json"',
+            "Content-Disposition": f'attachment; filename="{action_file}_{server_name_file}_{random_num}.json"',
         },
     )
 
