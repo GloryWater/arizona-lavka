@@ -100,21 +100,23 @@ class ConfigGeneratorService:
     ) -> Dict[int, Tuple[str, List[float]]]:
         """
         Группирует предметы из данных пользователей по item_id.
-        
+
         Это базовый метод для устранения дублирования кода между
         generate_config, generate_config_by_liquidity и generate_config_by_category.
-        
+
         Args:
             users_data: Данные пользователей из API
             server_id: ID сервера для фильтрации
             mode: Режим (SELL/BUY)
-            
+
         Returns:
             Dict {item_id: (item_name, [prices])}
         """
         items_data: Dict[int, Tuple[str, List[float]]] = {}
         mode_key = "items_sell" if mode == ConfigMode.SELL else "items_buy"
         price_key = "price_sell" if mode == ConfigMode.SELL else "price_buy"
+
+        logger.info(f"Группировка предметов: server_id={server_id}, mode={mode.value}, пользователей={len(users_data)}")
 
         for user_data in users_data:
             if user_data.get("serverId") != server_id:
@@ -138,6 +140,7 @@ class ConfigGeneratorService:
                 except (ValueError, TypeError):
                     continue
 
+        logger.info(f"Сгруппировано {len(items_data)} уникальных предметов")
         return items_data
 
     def _create_config_item(self, item_name: str, price: int) -> ConfigItemResponse:
@@ -389,8 +392,12 @@ class ConfigGeneratorService:
         Returns:
             (config_items, stats)
         """
+        logger.info(f"Начало генерации конфига: server_id={server_id}, mode={mode.value}, percentage={percentage}")
+        
         # Группировка предметов по item_id (используем базовый метод)
         items_data = self._group_items_from_users(users_data, server_id, mode)
+
+        logger.info(f"Получено {len(items_data)} предметов для генерации конфига")
 
         # Анализ каждого предмета
         config_items: List[ConfigItemResponse] = []
@@ -417,6 +424,8 @@ class ConfigGeneratorService:
 
             config_item = self._create_config_item(item_name, adjusted_price)
             config_items.append(config_item)
+
+        logger.info(f"Сгенерировано {len(config_items)} предметов в конфиге (отфильтровано по ликвидности: {filtered_by_liquidity})")
 
         # Сортировка по item_id и присвоение position_tab
         config_items_sorted = sorted(

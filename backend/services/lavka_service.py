@@ -16,6 +16,9 @@ from services.marketplace_service import MarketplaceService
 
 logger = logging.getLogger(__name__)
 
+# Путь к файлу mapping предметов
+# items.json находится в папке backend/ (рядом с main.py)
+# При запуске в Docker: /app/items.json
 ITEMS_FILE = Path(__file__).parent.parent / "items.json"
 
 
@@ -48,12 +51,16 @@ class LavkaService:
     def load_items_mapping(cls) -> Dict[str, str]:
         """
         Загружает статический JSON с mapping предметов в память.
-        
+
         Returns:
             Словарь mapping предметов ID -> название
         """
         if cls._items_loaded:
+            logger.debug(f"Mapping уже загружен: {len(cls._items_mapping)} предметов")
             return cls._items_mapping
+
+        logger.info(f"Загрузка mapping предметов из {ITEMS_FILE}")
+        logger.info(f"ITEMS_FILE exists: {ITEMS_FILE.exists()}, absolute: {ITEMS_FILE.absolute()}")
         
         try:
             with open(ITEMS_FILE, "r", encoding="utf-8") as f:
