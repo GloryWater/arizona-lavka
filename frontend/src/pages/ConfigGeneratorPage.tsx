@@ -222,7 +222,7 @@ export function ConfigGeneratorPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Select
                 label="Сервер"
-                options={SERVERS.filter(s => s.id !== -1).map(s => ({ value: String(s.id), label: s.name }))}
+                options={SERVERS.map(s => ({ value: String(s.id), label: s.name }))}
                 value={formData.server_id}
                 onChange={(e) => setFormData({ ...formData, server_id: e.target.value })}
               />
