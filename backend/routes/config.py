@@ -123,14 +123,36 @@ async def generate_and_download_config(
         config_generator.session.add(config_history)
         await config_generator.session.commit()
 
-    # Генерируем JSON в UTF-8
-    json_str = json.dumps(config_data, ensure_ascii=False, indent=4)
+    # Генерируем JSON в формате для бота (cp1251)
+    # Убираем лишние поля, оставляем только нужные для бота
+    bot_config = []
+    for item in config_items:
+        item_dict = {
+            "price": item.price,
+            "maximum": item.maximum,
+            "enabled": item.enabled,
+            "name": item.name,
+            "price_vc": item.price_vc,
+            "count": item.count,
+            "slot_count": item.slot_count,
+            "slot_id": item.slot_id,
+            "position_tab": item.position_tab,
+            "all_count": item.all_count,
+        }
+        # Добавляем continue и count_maximum только если они есть
+        if hasattr(item, 'continue_') and item.continue_:
+            item_dict["continue"] = item.continue_
+        if hasattr(item, 'count_maximum'):
+            item_dict["count_maximum"] = item.count_maximum
+        bot_config.append(item_dict)
+    
+    json_str = json.dumps(bot_config, ensure_ascii=False, indent=4)
 
     logger.info(f"Генерация JSON конфига: {len(config_items)} предметов, размер JSON: {len(json_str)} байт")
 
     return Response(
-        content=json_str.encode("utf-8"),
-        media_type="application/json; charset=utf-8",
+        content=json_str.encode("cp1251"),
+        media_type="application/json; charset=cp1251",
         headers={
             "Content-Disposition": f'attachment; filename="config_{request.mode.value.lower()}_{request.server_id}.json"',
         },

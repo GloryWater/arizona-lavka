@@ -44,7 +44,8 @@ export function ConfigGeneratorPage() {
   }, []);
 
   const handleDownload = async (blob: Blob, filename: string) => {
-    // blob уже содержит JSON данные от сервера
+    // blob содержит JSON данные в кодировке cp1251 от сервера
+    // Для скачивания просто передаём blob напрямую
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
