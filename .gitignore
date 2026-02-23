@@ -1,0 +1,9 @@
+.venv/ 
+__pycache__/ 
+*.pyc 
+backend/logs/ 
+frontend/dist/ 
+frontend/node_modules/ 
+trash_arizonalavka/ 
+data/ 
+*.log
