@@ -70,12 +70,6 @@ export function ConfigGeneratorPage() {
     try {
       let response;
       let filename = '';
-      
-      // Получаем название сервера
-      const selectedServer = SERVERS.find(s => s.id.toString() === formData.server_id);
-      const serverName = selectedServer?.name.toLowerCase().replace(/\s+/g, '_') || 'server';
-      const action = formData.mode.toLowerCase();
-      const randomNum = Math.floor(1000 + Math.random() * 9000); // 4-7 цифр
 
       if (generatorMode === 'standard') {
         response = await apiClient.post(
@@ -88,21 +82,22 @@ export function ConfigGeneratorPage() {
           },
           { responseType: 'blob' }
         );
-        filename = `${action}_${serverName}_${randomNum}.json`;
+        // Формат: config_{action}_{server_id}.json
+        filename = `config_${formData.mode.toLowerCase()}_${formData.server_id}.json`;
       } else if (generatorMode === 'liquidity') {
         response = await apiClient.post(
           `/config/generate/liquidity?server_id=${formData.server_id}&mode=${formData.mode}&percentage=${formData.percentage}&top_count=${formData.top_count}`,
           {},
           { responseType: 'blob' }
         );
-        filename = `${action}_${serverName}_liquidity_top${formData.top_count}_${randomNum}.json`;
+        filename = `config_${formData.mode.toLowerCase()}_liquidity_top${formData.top_count}_${formData.server_id}.json`;
       } else {
         response = await apiClient.post(
           `/config/generate/category?server_id=${formData.server_id}&mode=${formData.mode}&percentage=${formData.percentage}&category=${formData.category}`,
           {},
           { responseType: 'blob' }
         );
-        filename = `${action}_${serverName}_category_${formData.category}_${randomNum}.json`;
+        filename = `config_${formData.mode.toLowerCase()}_category_${formData.category}_${formData.server_id}.json`;
       }
 
       handleDownload(response.data, filename);

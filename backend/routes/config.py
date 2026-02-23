@@ -124,30 +124,24 @@ async def generate_and_download_config(
         await config_generator.session.commit()
 
     # Генерируем JSON в формате для бота (cp1251)
-    # Строго следуем формату required.json
+    # Формат как в ArzMarket_Drake_sell4138.json
     bot_config = []
     for item in config_items:
         item_dict = {
-            "price": str(item.price),  # Всегда строка
+            "price": str(item.price),
             "maximum": item.maximum,
-            "enabled": item.enabled,
-            "name": item.name,
-            "price_vc": item.price_vc,  # Может быть int или str
-            "count": item.count,  # Может быть int или str
-            "slot_count": item.slot_count,
-            "slot_id": item.slot_id,
-            "position_tab": item.position_tab,
+            "continue": "1",
             "all_count": item.all_count,
+            "price_vc": str(item.price_vc),
+            "position_tab": item.position_tab,
+            "enabled": item.enabled,
+            "count": str(item.count),
+            "name": item.name,
+            "count_maximum": 0,
         }
-        # Добавляем continue только если есть
-        if hasattr(item, 'continue_') and item.continue_:
-            item_dict["continue"] = str(item.continue_)
-        # Добавляем count_maximum только если не 0
-        if hasattr(item, 'count_maximum') and item.count_maximum:
-            item_dict["count_maximum"] = item.count_maximum
         bot_config.append(item_dict)
     
-    json_str = json.dumps(bot_config, ensure_ascii=False, indent=4)
+    json_str = json.dumps(bot_config, ensure_ascii=False, indent=2)
 
     logger.info(f"Генерация JSON конфига: {len(config_items)} предметов, размер JSON: {len(json_str)} байт")
 
@@ -257,22 +251,18 @@ async def generate_config_by_liquidity(
         item_dict = {
             "price": str(item.price),
             "maximum": item.maximum,
-            "enabled": item.enabled,
-            "name": item.name,
-            "price_vc": item.price_vc,
-            "count": item.count,
-            "slot_count": item.slot_count,
-            "slot_id": item.slot_id,
-            "position_tab": item.position_tab,
+            "continue": "1",
             "all_count": item.all_count,
+            "price_vc": str(item.price_vc),
+            "position_tab": item.position_tab,
+            "enabled": item.enabled,
+            "count": str(item.count),
+            "name": item.name,
+            "count_maximum": 0,
         }
-        if hasattr(item, 'continue_') and item.continue_:
-            item_dict["continue"] = str(item.continue_)
-        if hasattr(item, 'count_maximum') and item.count_maximum:
-            item_dict["count_maximum"] = item.count_maximum
         bot_config.append(item_dict)
     
-    json_str = json.dumps(bot_config, ensure_ascii=False, indent=4)
+    json_str = json.dumps(bot_config, ensure_ascii=False, indent=2)
     
     logger.info(f"Генерация JSON конфига (liquidity): {len(config_items)} предметов, размер: {len(json_str)} байт")
 
@@ -318,22 +308,18 @@ async def generate_config_by_category(
         item_dict = {
             "price": str(item.price),
             "maximum": item.maximum,
-            "enabled": item.enabled,
-            "name": item.name,
-            "price_vc": item.price_vc,
-            "count": item.count,
-            "slot_count": item.slot_count,
-            "slot_id": item.slot_id,
-            "position_tab": item.position_tab,
+            "continue": "1",
             "all_count": item.all_count,
+            "price_vc": str(item.price_vc),
+            "position_tab": item.position_tab,
+            "enabled": item.enabled,
+            "count": str(item.count),
+            "name": item.name,
+            "count_maximum": 0,
         }
-        if hasattr(item, 'continue_') and item.continue_:
-            item_dict["continue"] = str(item.continue_)
-        if hasattr(item, 'count_maximum') and item.count_maximum:
-            item_dict["count_maximum"] = item.count_maximum
         bot_config.append(item_dict)
     
-    json_str = json.dumps(bot_config, ensure_ascii=False, indent=4)
+    json_str = json.dumps(bot_config, ensure_ascii=False, indent=2)
     
     logger.info(f"Генерация JSON конфига (category): {len(config_items)} предметов, размер: {len(json_str)} байт")
 
