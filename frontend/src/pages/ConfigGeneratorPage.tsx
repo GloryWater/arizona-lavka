@@ -43,8 +43,8 @@ export function ConfigGeneratorPage() {
     loadCategories();
   }, []);
 
-  const handleDownload = async (config: Record<string, unknown>, filename: string) => {
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+  const handleDownload = async (blob: Blob, filename: string) => {
+    // blob уже содержит JSON данные от сервера
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
