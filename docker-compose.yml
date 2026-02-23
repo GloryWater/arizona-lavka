@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: arizonalavka-postgres
+    environment:
+      POSTGRES_USER: arizonalavka
+      POSTGRES_PASSWORD: arizonalavka_password
+      POSTGRES_DB: arizonalavka
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - arizonalavka-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arizonalavka -d arizonalavka"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: arizonalavka-backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      POSTGRES_USER: arizonalavka
+      POSTGRES_PASSWORD: arizonalavka_password
+      POSTGRES_DB: arizonalavka
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      JWT_SECRET_KEY: super_secret_jwt_key_min_32_characters_long_for_security
+      DEBUG: "false"
+      CORS_ORIGINS: https://lavka.glorysyntax.live,http://lavka.glorysyntax.live
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - arizonalavka-network
+    restart: unless-stopped
+
+  # Frontend (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: arizonalavka-frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
+    networks:
+      - arizonalavka-network
+    restart: unless-stopped
+
+networks:
+  arizonalavka-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_data:
+    driver: local

@@ -1,0 +1,1195 @@
+================================================================================
+ARIZONA LAVKA MARKETPLACE v3.0
+ТЕХНИЧЕСКОЕ ОПИСАНИЕ ПРОЕКТА
+================================================================================
+
+Дата: Февраль 2026
+Версия: 3.0.0
+Статус: Production Ready
+Лицензия: Proprietary
+
+================================================================================
+1. ОБЩАЯ ИНФОРМАЦИЯ
+================================================================================
+
+1.1. НАЗНАЧЕНИЕ СИСТЕМЫ
+
+Arizona Lavka Marketplace — это профессиональная full-stack платформа для
+мониторинга и анализа marketplace игрового сервера Arizona RP (GTA 5 Online).
+
+Основное назначение:
+- Предоставление игрокам инструмента для просмотра актуальных предложений
+  marketplace (продажа/покупка предметов)
+- Генерация торговых конфигов для автоматизированных ботов
+- Исторический анализ цен и трендов на 33 серверах
+- Отслеживание изменений цен в реальном времени
+
+1.2. ЦЕЛЕВАЯ АУДИТОРИЯ
+
+- Игроки Arizona RP, занимающиеся торговлей на marketplace
+- Владельцы торговых ботов для автоматизации
+- Аналитики игровых экономик
+- Исследователи виртуальных рынков
+
+1.3. ОСНОВНЫЕ ВОЗМОЖНОСТИ
+
+✓ Мониторинг предложений marketplace в реальном времени
+✓ Поиск предметов по названию с фильтрацией
+✓ Фильтрация по серверам (33 сервера Arizona RP)
+✓ Сортировка по цене (возрастание/убывание)
+✓ Просмотр лавок игроков с детальной информацией
+✓ Генерация торговых конфигов с IQR фильтрацией выбросов
+✓ Исторический анализ данных (тренды, ликвидность)
+✓ JWT аутентификация с refresh токенами
+✓ История сгенерированных конфигов
+✓ Избранные предметы (запланировано)
+✓ Уведомления об изменении цен (запланировано)
+
+================================================================================
+2. АРХИТЕКТУРА СИСТЕМЫ
+================================================================================
+
+2.1. ОБЩАЯ АРХИТЕКТУРА
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            КЛИЕНТСКИЙ УРОВЕНЬ                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐        │
+│  │   Web Browser   │  │  Telegram Mini  │  │   Mobile Apps   │        │
+│  │   (Desktop/     │  │     App         │  │   (Future)      │        │
+│  │    Mobile)      │  │                 │  │                 │        │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘        │
+│           │                    │                     │                 │
+└───────────┼────────────────────┼─────────────────────┼─────────────────┘
+            │                    │                     │
+            └────────────────────┼─────────────────────┘
+                                 │ HTTPS/API
+            ┌────────────────────┼─────────────────────┐
+            │                    │                     │
+┌───────────▼────────────────────▼─────────────────────▼─────────────────┐
+│                         СЕРВЕРНЫЙ УРОВЕНЬ (BFF)                        │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │              FastAPI Backend (Python 3.12)                      │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │  │
+│  │  │ Auth Service │  │ Marketplace  │  │   Config     │         │  │
+│  │  │              │  │   Service    │  │  Generator   │         │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘         │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │  │
+│  │  │  Historical  │  │   Lavka      │  │   Telegram   │         │  │
+│  │  │    Data      │  │   Service    │  │    Auth      │         │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘         │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+│                                    │                                   │
+│  ┌─────────────────────────────────┼──────────────────────────────┐  │
+│  │              SQLAlchemy 2.0 (Async)                             │  │
+│  └─────────────────────────────────┼──────────────────────────────┘  │
+│                                    │                                   │
+│  ┌─────────────────────────────────▼──────────────────────────────┐  │
+│  │              SQLite Database (Async)                            │  │
+│  │  ┌──────────┐  ┌──────────────┐  ┌──────────────┐            │  │
+│  │  │  Users   │  │ ConfigHistory│  │ FavoriteItem │            │  │
+│  │  └──────────┘  └──────────────┘  └──────────────┘            │  │
+│  │  ┌──────────┐  ┌──────────────┐                               │  │
+│  │  │  Price   │  │  AuditLog    │                               │  │
+│  │  │  Alert   │  │              │                               │  │
+│  │  └──────────┘  └──────────────┘                               │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                 │
+            ┌────────────────────┼────────────────────┐
+            │                    │                    │
+┌───────────▼──────────┐ ┌──────▼────────┐ ┌────────▼────────┐
+│  External API         │ │  Static Data  │ │  Historical     │
+│  arz.market           │ │  items.json   │ │  Data Files     │
+│  (Marketplace)        │ │  (9799 items) │ │  (33 servers)   │
+└──────────────────────┘ └───────────────┘ └─────────────────┘
+
+2.2. ТЕХНОЛОГИЧЕСКИЙ СТЕК
+
+Backend:
+- Язык: Python 3.12+
+- Web Framework: FastAPI 0.109+
+- ASGI Server: Uvicorn 0.27+
+- ORM: SQLAlchemy 2.0 (async)
+- Database: SQLite + Aiosqlite 0.19+
+- Валидация: Pydantic V2
+- Аутентификация: PyJWT 2.8+, python-jose 3.3+
+- Хеширование: bcrypt 4.1+, Passlib 1.7+
+- HTTP Client: HTTPX 0.26+
+- Кэширование: Cachetools 5.3+
+- Миграции БД: Alembic 1.13+
+
+Frontend:
+- Framework: React 18.2+
+- Language: TypeScript 5.2+
+- Build Tool: Vite 5.0+
+- Styling: Tailwind CSS 3.4+
+- Icons: Lucide React 0.294+
+- Routing: React Router 7.13+
+- HTTP Client: Axios 1.6+
+
+Infrastructure:
+- Контейнеризация: Docker 20+
+- Оркестрация: Docker Compose 2.0+
+- Web Server: Nginx (production)
+- CI/CD: GitHub Actions (планируется)
+
+2.3. СТРУКТУРА ПРОЕКТА
+
+arizonalavka/
+├── backend/                      # Backend приложение
+│   ├── main.py                   # FastAPI приложение + middleware
+│   ├── config.py                 # Настройки (Pydantic Settings)
+│   ├── database.py               # SQLAlchemy модели + сессии
+│   ├── models.py                 # Pydantic схемы для API
+│   ├── utils.py                  # Вспомогательные утилиты
+│   ├── items.json                # Mapping предметов (9799 записей)
+│   ├── requirements.txt          # Python зависимости
+│   ├── Dockerfile                # Docker образ backend
+│   ├── .env.example              # Шаблон переменных окружения
+│   │
+│   ├── services/                 # Бизнес-логика
+│   │   ├── __init__.py
+│   │   ├── auth_service.py       # JWT аутентификация
+│   │   ├── marketplace_service.py # API marketplace + кэш
+│   │   ├── lavka_service.py      # Лавки и предметы
+│   │   ├── historical_data_service.py  # Исторический анализ
+│   │   ├── advanced_config_generator.py  # IQR генератор конфигов
+│   │   └── config_generator_service.py   # Генерация конфигов
+│   │
+│   ├── routes/                   # API endpoints
+│   │   ├── __init__.py
+│   │   ├── auth.py               # /api/auth/* (register, login, logout)
+│   │   ├── config.py             # /api/config/* (generate, history)
+│   │   ├── marketplace.py        # /api/marketplace/* (offers, lavkas)
+│   │   └── user.py               # /api/user/* (profile)
+│   │
+│   ├── data/                     # Исторические данные
+│   │   ├── info_users_buy_*.json (33 файла, cp1251)
+│   │   └── info_users_sell_*.json (33 файла, cp1251)
+│   │
+│   └── logs/                     # Логи приложения
+│       └── server.log
+│
+├── frontend/                     # Frontend приложение
+│   ├── src/
+│   │   ├── App.tsx               # Корневой компонент + роутинг
+│   │   ├── main.tsx              # Entry point
+│   │   ├── index.css             # Глобальные стили
+│   │   ├── types.ts              # TypeScript типы
+│   │   │
+│   │   ├── api/
+│   │   │   └── marketplace.ts    # Axios клиент + interceptors
+│   │   │
+│   │   ├── contexts/
+│   │   │   └── AuthContext.tsx   # Auth состояние + JWT refresh
+│   │   │
+│   │   ├── pages/                # Страницы приложения
+│   │   │   ├── HomePage.tsx      # Главная (поиск + лавки)
+│   │   │   ├── LavkaPage.tsx     # Страница лавки
+│   │   │   ├── ConfigGeneratorPage.tsx  # Генератор конфигов
+│   │   │   ├── LoginPage.tsx     # Вход
+│   │   │   ├── RegisterPage.tsx  # Регистрация
+│   │   │   └── ProfilePage.tsx   # Профиль пользователя
+│   │   │
+│   │   ├── components/           # UI компоненты
+│   │   │   ├── header/
+│   │   │   │   └── Header.tsx    # Шапка сайта
+│   │   │   ├── layout/
+│   │   │   │   └── Footer.tsx    # Подвал сайта
+│   │   │   ├── ui/               # Базовые компоненты
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Card.tsx
+│   │   │   │   └── Select.tsx
+│   │   │   ├── states/           # Состояния
+│   │   │   │   ├── EmptyState.tsx
+│   │   │   │   └── ErrorState.tsx
+│   │   │   ├── offers/           # Компоненты предложений
+│   │   │   ├── lavkas/           # Компоненты лавок
+│   │   │   └── search/           # Компоненты поиска
+│   │   │
+│   │   ├── hooks/                # React хуки
+│   │   │   ├── useFetch.ts       # Data fetching
+│   │   │   └── useToast.ts       # Toast уведомления
+│   │   │
+│   │   └── utils/                # Утилиты
+│   │       └── constants.ts      # Константы (сервера, форматирование)
+│   │
+│   ├── public/                   # Статические файлы
+│   ├── index.html                # HTML шаблон
+│   ├── package.json              # NPM зависимости
+│   ├── tsconfig.json             # TypeScript настройки
+│   ├── vite.config.ts            # Vite конфигурация
+│   ├── tailwind.config.js        # Tailwind конфигурация
+│   ├── Dockerfile                # Docker образ (production)
+│   ├── Dockerfile.dev            # Docker образ (development)
+│   └── nginx.conf                # Nginx конфигурация
+│
+├── data/                         # Исторические данные (корень)
+│   ├── info_users_buy_*.json     # Данные покупок (33 сервера)
+│   └── info_users_sell_*.json    # Данные продаж (33 сервера)
+│
+├── scripts/                      # Скрипты утилит
+│   ├── scan_secrets.py           # Сканер секретов
+│   └── pre-commit                # Pre-commit хук
+│
+├── docker-compose.yml            # Docker оркестрация
+├── .gitignore                    # Git исключения
+├── .env.example                  # Шаблон окружения
+└── документация (md файлы)
+
+================================================================================
+3. ФУНКЦИОНАЛЬНЫЕ ТРЕБОВАНИЯ
+================================================================================
+
+3.1. МОДУЛЬ 1: АУТЕНТИФИКАЦИЯ И АВТОРИЗАЦИЯ
+
+3.1.1. Регистрация пользователя
+Входные данные:
+- username (3-50 символов)
+- email (валидный email)
+- password (минимум 8 символов)
+- first_name (опционально, до 100 символов)
+- last_name (опционально, до 100 символов)
+
+Процесс:
+1. Валидация входных данных (Pydantic)
+2. Проверка уникальности username и email
+3. Хеширование пароля (bcrypt, 12 rounds)
+4. Создание записи в БД
+5. Автоматический вход (генерация токенов)
+
+Выходные данные:
+- Объект пользователя (id, username, email, is_premium, created_at)
+- Access token (JWT, 30 минут)
+- Refresh token (JWT, 7 дней)
+
+Endpoint: POST /api/auth/register
+
+3.1.2. Вход пользователя
+Входные данные:
+- username или email
+- password
+
+Процесс:
+1. Поиск пользователя по username/email
+2. Проверка блокировки аккаунта (locked_until)
+3. Проверка пароля (bcrypt.compare)
+4. Сброс счётчика попыток при успехе
+5. Увеличение счётчика при ошибке
+6. Блокировка после 5 неудачных попыток (15 минут)
+7. Генерация пары токенов
+
+Выходные данные:
+- Access token
+- Refresh token
+
+Endpoint: POST /api/auth/login
+
+3.1.3. Обновление access токена
+Входные данные:
+- refresh_token
+
+Процесс:
+1. Валидация refresh токена (JWT decode)
+2. Проверка типа токена (type=refresh)
+3. Поиск пользователя в БД
+4. Проверка соответствия refresh_token в БД
+5. Генерация новой пары токенов
+6. Обновление refresh_token в БД
+
+Выходные данные:
+- Новый access token
+- Новый refresh token
+
+Endpoint: POST /api/auth/refresh
+
+3.1.4. Выход пользователя
+Входные данные:
+- Access token (в заголовке Authorization)
+
+Процесс:
+1. Получение текущего пользователя из токена
+2. Очистка refresh_token в БД (отзыв)
+3. Логирование выхода
+
+Выходные данные:
+- Сообщение об успешном выходе
+
+Endpoint: POST /api/auth/logout
+
+3.1.5. Получение информации о пользователе
+Входные данные:
+- Access token (в заголовке)
+
+Процесс:
+1. Валидация токена
+2. Получение пользователя из БД
+
+Выходные данные:
+- Профиль пользователя (id, username, email, first_name, last_name, is_premium, created_at)
+
+Endpoint: GET /api/auth/me
+
+3.1.6. Защита от brute-force
+- Максимум попыток входа: 5
+- Время блокировки: 15 минут
+- Счётчик хранится в БД (login_attempts, locked_until)
+
+3.1.7. Требования к паролям
+- Минимальная длина: 8 символов
+- Хеширование: bcrypt с солью
+- Хранение: только хеш в БД
+
+================================================================================
+
+3.2. МОДУЛЬ 2: МОНИТОРИНГ MARKETPLACE
+
+3.2.1. Получение предложений (offers)
+Входные данные (query parameters):
+- search_term (строка, опционально)
+- server_id (int, -1..32, опционально)
+- sort_order (asc/desc/none, по умолчанию none)
+
+Процесс:
+1. Получение данных из внешнего API (arz.market)
+2. Кэширование ответа (TTL 30 секунд)
+3. Парсинг параллельных массивов:
+   - items_sell, price_sell, count_sell
+   - items_buy, price_buy, count_buy
+4. Нормализация данных (преобразование в Offer объекты)
+5. Фильтрация по search_term (case-insensitive)
+6. Фильтрация по server_id
+7. Сортировка по price (asc/desc)
+8. Подсчёт уникальных серверов
+
+Выходные данные:
+{
+  offers: [
+    {
+      type: "sell"|"buy",
+      itemId: int,
+      itemName: string,
+      price: number,
+      count: number,
+      username: string,
+      lavkaUid: string,
+      serverId: int,
+      serverName: string,
+      userStatus: boolean
+    }
+  ],
+  total: int,
+  servers: int
+}
+
+Endpoint: GET /api/marketplace/offers
+
+3.2.2. Получение списка серверов
+Процесс:
+1. Чтение из констант (SERVER_NAMES)
+2. Формирование списка
+
+Выходные данные:
+{
+  servers: [
+    { id: int, name: string }
+  ],
+  total: int (33)
+}
+
+Endpoint: GET /api/marketplace/servers
+
+3.2.3. Получение списка лавок на сервере
+Входные данные:
+- server_id (int, 0..32)
+
+Процесс:
+1. Получение данных из API
+2. Фильтрация по server_id
+3. Группировка по lavkaUid
+4. Подсчёт items_sell и items_buy
+5. Сортировка по totalItems (убывание)
+
+Выходные данные:
+{
+  lavkas: [
+    {
+      lavkaUid: string,
+      username: string,
+      serverId: int,
+      serverName: string,
+      sellCount: int,
+      buyCount: int,
+      totalItems: int
+    }
+  ],
+  total: int,
+  serverName: string
+}
+
+Endpoint: GET /api/marketplace/lavkas?server_id={id}
+
+3.2.4. Получение деталей лавки
+Входные данные:
+- lavkaUid (string)
+
+Процесс:
+1. Получение данных из API
+2. Поиск лавки по lavkaUid
+3. Парсинг предметов на продажу:
+   - items_sell, price_sell, count_sell
+4. Парсинг предметов на покупку:
+   - items_buy, price_buy, count_buy
+5. Преобразование item_id в item_name (items.json)
+
+Выходные данные:
+{
+  lavkaUid: string,
+  username: string,
+  serverId: int,
+  serverName: string,
+  userStatus: boolean,
+  sellItems: [
+    {
+      itemId: int,
+      itemName: string,
+      price: number,
+      count: number,
+      type: "sell"
+    }
+  ],
+  buyItems: [...],
+  totalSell: int,
+  totalBuy: int
+}
+
+Endpoint: GET /api/marketplace/lavkas/{lavka_uid}
+
+3.2.5. Получение mapping предметов
+Процесс:
+1. Загрузка items.json в память при старте
+2. Возврат полного словаря
+
+Выходные данные:
+{
+  "169": "Переносной верстак миража",
+  "485": "Wu Zi Mu (Woozie)",
+  ...
+}
+
+Endpoint: GET /api/marketplace/items
+
+3.2.6. Кэширование внешнего API
+- TTL: 30 секунд
+- Max size: 100 записей
+- Thread-safe: asyncio.Lock
+- Key: "marketplace_data"
+
+================================================================================
+
+3.3. МОДУЛЬ 3: ГЕНЕРАЦИЯ ТОРГОВЫХ КОНФИГОВ
+
+3.3.1. Генерация конфига
+Входные данные:
+- server_id (int, 0..32)
+- mode (SELL|BUY)
+- percentage (float, -50..50)
+- save_to_history (bool, по умолчанию true)
+
+Процесс генерации:
+
+Этап 1: Сбор данных
+1. Получение данных из marketplace API
+2. Фильтрация по server_id
+3. Извлечение предметов для режима:
+   - SELL: items_sell, price_sell
+   - BUY: items_buy, price_buy
+4. Группировка по item_id:
+   {
+     item_id: (item_name, [price1, price2, ...])
+   }
+
+Этап 2: Анализ каждого предмета
+Для каждого item_id:
+
+2.1. Расчёт текущей цены (IQR метод):
+    a. Сортировка цен
+    b. Расчёт Q1 (25-й перцентиль) и Q3 (75-й перцентиль)
+       - Линейная интерполяция для точности
+    c. IQR = Q3 - Q1
+    d. Границы: [Q1 - 1.5*IQR, Q3 + 1.5*IQR]
+    e. Фильтрация выбросов (за пределами границ)
+    f. Если отфильтровано >50% → использовать медиану всех
+    g. Медиана отфильтрованных цен
+
+2.2. Загрузка исторических данных:
+    - Чтение из data/info_users_{mode}_{server}.json
+    - Кодировка: cp1251
+    - Поиск по item_name (с конвертацией UTF-8 ↔ cp1251)
+
+2.3. Расчёт исторических метрик:
+    - Средняя цена за 7 дней
+    - Средняя цена за 30 дней
+    - Тренд (up/down/stable, порог 5%)
+    - Ликвидность (0-100, по дням с торгами и объёму)
+
+2.4. Расчёт взвешенной цены:
+    - weight_current = 0.40 (40%)
+    - weight_historical = 0.35 (35%)
+    - weight_trend = 0.25 (25%)
+    - weighted_price = (current_median * 0.40) + 
+                       (historical_avg * 0.35) +
+                       (trend_adjustment * 0.25)
+
+2.5. Расчёт уверенности (0-1):
+    - Фактор 1: Количество текущих предложений (0-0.3)
+      * ≥10: 0.3, ≥5: 0.2, ≥2: 0.1
+    - Фактор 2: Дней исторических данных (0-0.3)
+      * ≥14: 0.3, ≥7: 0.2, ≥3: 0.1
+    - Фактор 3: Ликвидность (0-0.25)
+      * liquidity_score / 100 * 0.25
+    - Фактор 4: Стабильность цены (0-0.15)
+      * (1 - variance) * 0.15
+    - Уровни:
+      * VERY_HIGH: ≥0.90
+      * HIGH: ≥0.75
+      * MEDIUM: ≥0.50
+      * LOW: ≥0.25
+      * VERY_LOW: <0.25
+
+2.6. Применение процентной корректировки:
+    - adjusted_price = weighted_price * (1 + percentage/100)
+
+2.7. Округление:
+    - HIGH/VERY_HIGH: точное округление
+    - MEDIUM: до 5
+    - LOW/VERY_LOW: до 10
+    - Минимум: 1
+
+Этап 3: Формирование конфига
+3.1. Сортировка по item_id (возрастание)
+3.2. Присвоение position_tab (1..N)
+3.3. Формирование JSON в формате бота:
+    [
+      {
+        "price": "11500",        // STRING!
+        "maximum": true,
+        "enabled": true,
+        "name": "Предмет",
+        "price_vc": 9,
+        "count": 1,
+        "slot_count": ["0"],
+        "slot_id": ["0"],
+        "position_tab": 1,
+        "all_count": 0,
+        "continue": "1",
+        "count_maximum": 0
+      }
+    ]
+
+3.3.2. Сохранение в историю
+Процесс:
+1. Создание записи ConfigHistory:
+   - user_id, server_id, server_name
+   - mode, percentage
+   - items_count, config_data (JSON)
+   - used_historical_data, confidence_score
+2. Сохранение в БД
+
+3.3.3. Скачивание конфига
+Процесс:
+1. Генерация JSON (indent=4, ensure_ascii=False)
+2. Кодирование в cp1251
+3. Возврат как файл:
+   - Content-Type: application/json
+   - Content-Disposition: attachment; filename=...
+
+Endpoint: POST /api/config/generate/download
+
+3.3.4. Получение истории конфигов
+Входные данные:
+- limit (int, 1..100, по умолчанию 20)
+
+Выходные данные:
+[
+  {
+    id: int,
+    server_name: string,
+    mode: string,
+    percentage: float,
+    items_count: int,
+    created_at: datetime,
+    download_count: int
+  }
+]
+
+Endpoint: GET /api/config/history
+
+3.3.5. Получение деталей конфига
+Входные данные:
+- config_id (int)
+
+Процесс:
+1. Поиск конфига в БД
+2. Проверка принадлежности пользователю
+3. Увеличение download_count
+4. Возврат config_data (cp1251)
+
+Endpoint: GET /api/config/history/{config_id}
+
+================================================================================
+
+3.4. МОДУЛЬ 4: ИСТОРИЧЕСКИЙ АНАЛИЗ ДАННЫХ
+
+3.4.1. Структура исторических файлов
+Файлы:
+- data/info_users_buy_{server}.json (33 файла)
+- data/info_users_sell_{server}.json (33 файла)
+
+Формат записи:
+{
+  "Название предмета": {
+    "list": [
+      [
+        "2026-02-18",  // дата (YYYY-MM-DD)
+        34,            // количество
+        195000,        // общая сумма
+        34,            // количество (дублируется)
+        5735,          // цена за штуку
+        5735           // цена за штуку (дублируется)
+      ]
+    ],
+    "arizonaServerGroup": "arizona-market"
+  }
+}
+
+Кодировка: cp1251 (Windows-1251)
+
+3.4.2. Расчёт тренда цены
+Входные данные:
+- item_name
+- mode (buy|sell)
+- days (7|30)
+
+Процесс:
+1. Получение истории торгов
+2. Сортировка по дате (убывание)
+3. Выборка последних N дней
+4. Расчёт метрик:
+   - current_price: цена сегодня
+   - old_price: цена N дней назад
+   - avg_price: среднее арифметическое
+   - min_price, max_price
+   - price_change: current - old
+   - price_change_percent: (change / old) * 100
+5. Определение тренда:
+   - up: change_percent > 5%
+   - down: change_percent < -5%
+   - stable: иначе
+
+Выходные данные:
+{
+  trend: "up"|"down"|"stable",
+  current_price: number,
+  avg_price: number,
+  min_price: number,
+  max_price: number,
+  price_change: number,
+  price_change_percent: number,
+  volume: number,
+  data_points: number
+}
+
+3.4.3. Расчёт ликвидности
+Входные данные:
+- item_name
+- mode
+- days (30)
+
+Процесс:
+1. Получение истории торгов
+2. Сортировка по дате
+3. Расчёт метрик:
+   - days_with_trades: количество дней с активностью
+   - total_volume: сумма количеств
+   - avg_daily_volume: total_volume / days_with_trades
+4. Нормализация:
+   - days_score: (days_with_trades / days) * 100
+   - volume_score: (total_volume / 1000) * 100
+5. Итоговый score:
+   - liquidity_score = days_score * 0.4 + volume_score * 0.6
+
+Выходные данные:
+- liquidity_score (0-100)
+
+3.4.4. Расчёт справедливой цены
+Входные данные:
+- item_name
+- mode
+- percentage
+
+Процесс:
+1. Получение тренда за 7 дней
+2. Получение тренда за 30 дней
+3. Взвешенное среднее:
+   - avg_7d * 0.5 + avg_30d * 0.3 + current * 0.2
+4. Применение percentage
+5. Округление
+
+Выходные данные:
+{
+  fair_price: number,
+  confidence: "high"|"medium"|"low",
+  metrics: {...}
+}
+
+================================================================================
+
+3.5. МОДУЛЬ 5: ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
+
+3.5.1. Получение профиля
+Входные данные:
+- Access token
+
+Выходные данные:
+{
+  id: int,
+  username: string,
+  email: string,
+  first_name: string|null,
+  last_name: string|null,
+  is_premium: boolean,
+  created_at: datetime
+}
+
+Endpoint: GET /api/user/profile
+
+3.5.2. Статистика пользователя
+Отображение:
+- Количество созданных конфигов
+- Количество избранных предметов (future)
+- Количество активных уведомлений (future)
+
+================================================================================
+
+3.6. МОДУЛЬ 6: ИЗБРАННЫЕ ПРЕДМЕТЫ (ЗАПЛАНИРОВАНО)
+
+3.6.1. Модель БД (реализована, нет API)
+class FavoriteItem:
+    id: int
+    user_id: int
+    item_id: int
+    item_name: string
+    target_price: float|null
+    target_percentage: float (default -5)
+    mode: SELL|BUY
+    server_id: int
+    notes: string|null
+    is_active: boolean
+    created_at: datetime
+    updated_at: datetime
+
+3.6.2. Требуемые endpoints (не реализованы)
+- POST /api/user/favorites — Добавить в избранное
+- GET /api/user/favorites — Список избранного
+- DELETE /api/user/favorites/{id} — Удалить из избранного
+- PUT /api/user/favorites/{id} — Обновить параметры
+
+================================================================================
+
+3.7. МОДУЛЬ 7: УВЕДОМЛЕНИЯ (ЗАПЛАНИРОВАНО)
+
+3.7.1. Модель БД (реализована, нет API)
+class PriceAlert:
+    id: int
+    user_id: int
+    item_id: int
+    item_name: string
+    server_id: int
+    target_price: float
+    condition: "above"|"below"
+    is_active: boolean
+    triggered: boolean
+    triggered_at: datetime|null
+    triggered_price: float|null
+    created_at: datetime
+
+3.7.2. Требуемые endpoints (не реализованы)
+- POST /api/user/alerts — Создать уведомление
+- GET /api/user/alerts — Список уведомлений
+- DELETE /api/user/alerts/{id} — Удалить уведомление
+- PUT /api/user/alerts/{id} — Обновить уведомление
+
+================================================================================
+
+3.8. МОДУЛЬ 8: АУДИТ ЛОГИРОВАНИЕ (ЧАСТИЧНО РЕАЛИЗОВАНО)
+
+3.8.1. Модель БД (реализована, нет API)
+class AuditLog:
+    id: int
+    user_id: int|null
+    action: string
+    resource: string|null
+    resource_id: int|null
+    ip_address: string|null
+    user_agent: string|null
+    details: string|null
+    status: "success"|"failure"|"error"
+    error_message: string|null
+    created_at: datetime
+
+3.8.2. Требуемые endpoints (не реализованы)
+- GET /api/admin/audit-logs — Просмотр логов (admin)
+- GET /api/admin/audit-logs/{id} — Детали лога
+
+================================================================================
+
+4. НЕФУНКЦИОНАЛЬНЫЕ ТРЕБОВАНИЯ
+================================================================================
+
+4.1. ПРОИЗВОДИТЕЛЬНОСТЬ
+
+Время ответа API:
+- Health check: < 50ms
+- Marketplace offers: < 500ms (с кэшем)
+- Config generation: < 5000ms
+- Auth endpoints: < 200ms
+
+Пропускная способность:
+- Rate limit: 60 запросов в минуту на IP
+- Concurrent users: до 100 (оценка)
+- Cache hit rate: > 80% для marketplace данных
+
+4.2. МАСШТАБИРУЕМОСТЬ
+
+Текущая архитектура:
+- Вертикальное масштабирование (более мощный сервер)
+- Stateless backend (горизонтальное масштабирование возможно)
+
+Ограничения:
+- SQLite: до 100 concurrent connections
+- File-based historical data: до 33 серверов
+
+Рекомендации для роста:
+- Миграция на PostgreSQL
+- Redis для кэширования
+- Load balancer для backend
+
+4.3. БЕЗОПАСНОСТЬ
+
+Аутентификация:
+- JWT tokens (HS256)
+- Access token: 30 минут
+- Refresh token: 7 дней
+- Отзыв токенов при logout
+
+Пароли:
+- bcrypt (12 rounds)
+- Минимальная длина: 8 символов
+- Блокировка после 5 попыток
+
+CORS:
+- Настроенные origins
+- Credentials support
+- Secure headers
+
+Rate Limiting:
+- 60 запросов в минуту на IP
+- Защита от DDoS и brute-force
+
+4.4. НАДЁЖНОСТЬ
+
+Кэширование:
+- TTL 30 секунд для marketplace API
+- LRU cache для предметов
+- Thread-safe операции (asyncio.Lock)
+
+Обработка ошибок:
+- Try-catch на всех уровнях
+- Логирование ошибок
+- Graceful degradation
+
+Бэкапы:
+- SQLite database (volume)
+- Hourly backup script (опционально)
+
+4.5. ДОСТУПНОСТЬ
+
+Текущая доступность:
+- Web browser (desktop/mobile)
+- Docker deployment
+
+Планируемая доступность:
+- Telegram Mini App
+- Mobile apps (iOS/Android)
+
+================================================================================
+
+5. ИНТЕГРАЦИИ
+================================================================================
+
+5.1. ВНЕШНИЕ API
+
+Arizona RP Marketplace API:
+- URL: https://api.arz.market/api/getSelectedMarketplace/-1
+- Метод: GET
+- Timeout: 30 секунд
+- Формат: JSON
+- Данные: параллельные массивы
+
+5.2. ВНУТРЕННИЕ ЗАВИСИМОСТИ
+
+Static Data:
+- items.json: 9799 предметов
+- Исторические файлы: 66 файлов (33 сервера × 2 режима)
+
+Database:
+- SQLite (development/production)
+- Alembic миграции
+
+================================================================================
+
+6. МОДЕЛИ ДАННЫХ (БД)
+================================================================================
+
+6.1. USERS
+Поля:
+- id (PK, autoincrement)
+- username (unique, index)
+- email (unique, index)
+- hashed_password
+- first_name (nullable)
+- last_name (nullable)
+- avatar_url (nullable)
+- is_active (default true)
+- is_verified (default false)
+- is_premium (default false)
+- login_attempts (default 0)
+- locked_until (nullable)
+- last_login (nullable)
+- refresh_token (nullable)
+- created_at
+- updated_at
+
+Индексы:
+- ix_users_username_email (username, email)
+
+Связи:
+- configs (one-to-many, cascade delete)
+- favorites (one-to-many, cascade delete)
+- price_alerts (one-to-many, cascade delete)
+
+6.2. CONFIG_HISTORY
+Поля:
+- id (PK, autoincrement)
+- user_id (FK users.id)
+- server_id
+- server_name
+- mode (SELL|BUY)
+- percentage
+- items_count
+- avg_price (nullable)
+- min_price (nullable)
+- max_price (nullable)
+- config_data (TEXT, JSON)
+- download_count (default 0)
+- used_historical_data (default false)
+- confidence_score (nullable)
+- created_at
+
+Индексы:
+- ix_config_history_user_server (user_id, server_id)
+- ix_config_history_created (created_at)
+
+Связи:
+- user (many-to-one)
+
+6.3. FAVORITE_ITEMS
+Поля:
+- id (PK, autoincrement)
+- user_id (FK users.id)
+- item_id
+- item_name
+- target_price (nullable)
+- target_percentage (default -5)
+- mode (default SELL)
+- server_id (default 0)
+- notes (nullable)
+- is_active (default true)
+- created_at
+- updated_at
+
+Уникальность:
+- uq_user_item_server (user_id, item_id, server_id)
+
+Индексы:
+- ix_favorite_items_user (user_id)
+
+Связи:
+- user (many-to-one)
+
+6.4. PRICE_ALERTS
+Поля:
+- id (PK, autoincrement)
+- user_id (FK users.id)
+- item_id
+- item_name
+- server_id
+- target_price
+- condition (above|below)
+- is_active (default true)
+- triggered (default false)
+- triggered_at (nullable)
+- triggered_price (nullable)
+- created_at
+
+Индексы:
+- ix_price_alerts_user_active (user_id, is_active)
+
+Связи:
+- user (many-to-one)
+
+6.5. AUDIT_LOGS
+Поля:
+- id (PK, autoincrement)
+- user_id (FK users.id, SET NULL)
+- action
+- resource (nullable)
+- resource_id (nullable)
+- ip_address (nullable)
+- user_agent (nullable)
+- details (nullable)
+- status (default success)
+- error_message (nullable)
+- created_at
+
+Индексы:
+- ix_audit_logs_action (action)
+- ix_audit_logs_created (created_at)
+
+Связи:
+- user (many-to-one, SET NULL)
+
+================================================================================
+
+7. API ENDPOINTS (ПОЛНЫЙ СПИСОК)
+================================================================================
+
+7.1. HEALTH & INFO
+GET  /                          # Health check
+GET  /docs                      # Swagger UI
+GET  /redoc                     # ReDoc
+
+7.2. AUTH (публичные)
+POST /api/auth/register         # Регистрация
+POST /api/auth/login            # Вход
+POST /api/auth/refresh          # Обновление токена
+POST /api/auth/logout           # Выход (требуется токен)
+GET  /api/auth/me               # Информация о пользователе (требуется токен)
+
+7.3. MARKETPLACE (публичные)
+GET  /api/marketplace/servers   # Список серверов
+GET  /api/marketplace/items     # Mapping предметов
+GET  /api/marketplace/offers    # Предложения с фильтрацией
+GET  /api/marketplace/lavkas    # Список лавок на сервере
+GET  /api/marketplace/lavkas/{id}  # Детали лавки
+
+7.4. CONFIG (требуется токен)
+POST /api/config/generate       # Генерация конфига
+POST /api/config/generate/download  # Генерация + скачивание (cp1251)
+GET  /api/config/history        # История конфигов
+GET  /api/config/history/{id}   # Детали конфига (cp1251)
+
+7.5. USER (требуется токен)
+GET  /api/user/profile          # Профиль пользователя
+
+================================================================================
+
+8. ОТсутствующий ФУНКЦИОНАЛ (GAP ANALYSIS)
+================================================================================
+
+8.1. НЕ РЕАЛИЗОВАННЫЕ ENDPOINTS
+
+Избранные предметы:
+❌ POST   /api/user/favorites          # Добавить
+❌ GET    /api/user/favorites          # Список
+❌ DELETE /api/user/favorites/{id}     # Удалить
+❌ PUT    /api/user/favorites/{id}     # Обновить
+
+Уведомления:
+❌ POST   /api/user/alerts             # Создать
+❌ GET    /api/user/alerts             # Список
+❌ DELETE /api/user/alerts/{id}        # Удалить
+❌ PUT    /api/user/alerts/{id}        # Обновить
+
+Аудит логи:
+❌ GET    /api/admin/audit-logs        # Просмотр (admin)
+❌ GET    /api/admin/audit-logs/{id}   # Детали
+
+8.2. НЕ РЕАЛИЗОВАННЫЕ ФУНКЦИИ
+
+Frontend:
+❌ Страница избранных предметов
+❌ Страница управления уведомлениями
+❌ Админ-панель для просмотра аудит логов
+❌ Экспорт конфигов в CSV/Excel
+❌ Графики трендов цен
+❌ Сравнение цен между серверами
+
+Backend:
+❌ Email уведомления (SMTP)
+❌ Telegram уведомления (бот)
+❌ WebSocket для real-time обновлений
+❌ Premium подписка (платежи)
+❌ API ключи для внешних ботов
+❌ 2FA аутентификация
+
+Инфраструктура:
+❌ PostgreSQL поддержка
+❌ Redis кэширование
+❌ Load balancer
+❌ CI/CD пайплайны
+❌ Мониторинг (Prometheus/Grafana)
+❌ Логирование в ELK stack
+
+8.3. ЧАСТИЧНО РЕАЛИЗОВАННЫЕ ФУНКЦИИ
+
+Профиль пользователя:
+⚠️  Отображение статистики (реализовано)
+⚠️  Редактирование профиля (не реализовано)
+⚠️  Смена пароля (не реализовано)
+⚠️  Привязка Telegram (не реализовано)
+
+История конфигов:
+⚠️  Просмотр истории (реализовано)
+⚠️  Повторное скачивание (реализовано)
+⚠️  Фильтрация истории (не реализовано)
+⚠️  Удаление из истории (не реализовано)
+⚠️  Сравнение конфигов (не реализовано)
+
+================================================================================
+
+9. ЗАКЛЮЧЕНИЕ
+================================================================================
+
+Текущее состояние проекта:
+- ✅ Ядро функционала реализовано
+- ✅ Аутентификация работает
+- ✅ Мониторинг marketplace работает
+- ✅ Генерация конфигов работает
+- ✅ Исторический анализ работает
+- ⚠️  Избранные и уведомления — модели есть, API нет
+- ⚠️  Telegram Mini App — промпт готов, код не написан
+
+Рекомендуемый приоритет доработок:
+1. Telegram Mini App (новый канал пользователей)
+2. Избранные предметы (базовое API + UI)
+3. Уведомления о ценах (базовое API + UI)
+4. Email/Telegram уведомления (интеграции)
+5. Premium подписка (монетизация)
+6. PostgreSQL миграция (масштабируемость)
+7. CI/CD и мониторинг (production готовность)
+
+================================================================================
+КОНЕЦ ДОКУМЕНТА
+================================================================================
