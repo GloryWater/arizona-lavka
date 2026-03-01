@@ -24,6 +24,8 @@
 - [Управление базой данных](#-управление-базой-данных)
 - [Нагрузочное тестирование](#-нагрузочное-тестирование)
 - [Деплой](#-деплой)
+- [Pre-commit Hooks](#-pre-commit-hooks)
+- [CI/CD](#-cicd)
 - [Troubleshooting](#-troubleshooting)
 - [Структура проекта](#-структура-проекта)
 
@@ -848,6 +850,107 @@ arizonalavka/
 
 ---
 
+## 🔧 Pre-commit Hooks
+
+Проект использует pre-commit hooks для автоматической проверки кода перед коммитом.
+
+### Установка
+
+```bash
+# Linux/Mac
+chmod +x scripts/install-pre-commit.sh
+./scripts/install-pre-commit.sh
+
+# Windows (PowerShell)
+.\scripts\install-pre-commit.ps1
+
+# Или вручную
+pip install pre-commit
+pre-commit install
+```
+
+### Запуск вручную
+
+```bash
+# Запуск всех проверок
+pre-commit run --all-files
+
+# Запуск конкретной проверки
+pre-commit run ruff --all-files
+pre-commit run mypy --all-files
+```
+
+### Доступные хуки
+
+| Хук | Описание |
+|-----|----------|
+| **Ruff lint** | Проверка кода на ошибки и стиль |
+| **Ruff format** | Форматирование кода |
+| **MyPy** | Проверка типов |
+| **Bandit** | Проверка безопасности |
+| **ESLint** | Линтинг TypeScript/React |
+| **TypeScript** | Проверка типов frontend |
+| **Hadolint** | Линтинг Dockerfile |
+| **Detect secrets** | Поиск секретов в коде |
+
+---
+
+## 🚀 CI/CD
+
+Проект использует GitHub Actions для автоматизации CI/CD процессов.
+
+### Workflow файлы
+
+| Файл | Описание |
+|------|----------|
+| `backend-ci.yaml` | Проверка backend: lint, type-check, security, tests |
+| `frontend-ci.yaml` | Проверка frontend: lint, type-check, build |
+| `cd-deploy.yaml` | Деплой на сервер через SSH |
+| `ci-all.yaml` | Оркестрация всех проверок |
+
+### Триггеры
+
+- **CI**: Запускается при push в ветки `main`, `develop` и pull requests
+- **CD**: Запускается при push в ветку `main` или вручную через UI
+
+### Проверки
+
+#### Backend CI
+- ✅ Ruff lint & format
+- ✅ MyPy type check
+- ✅ Bandit security check
+- ✅ pip-audit dependencies
+- ✅ Dockerfile lint
+
+#### Frontend CI
+- ✅ ESLint check
+- ✅ TypeScript type check
+- ✅ Vite build
+- ✅ Dockerfile lint
+- ✅ Docker build test
+
+### Настройка CD
+
+Для настройки деплоя необходимо добавить GitHub Secrets:
+
+```bash
+# В Settings → Secrets and variables → Actions добавьте:
+SERVER_HOST=your-server-ip
+SERVER_USERNAME=your-username
+SERVER_SSH_KEY=your-private-ssh-key
+DEPLOY_PATH=/opt/arizonalavka
+```
+
+Подробная инструкция в [`.github/SECRETS.md`](.github/SECRETS.md)
+
+### Статус проверок
+
+[![Backend CI](../../actions/workflows/backend-ci.yaml/badge.svg)](../../actions/workflows/backend-ci.yaml)
+[![Frontend CI](../../actions/workflows/frontend-ci.yaml/badge.svg)](../../actions/workflows/frontend-ci.yaml)
+[![CD Deploy](../../actions/workflows/cd-deploy.yaml/badge.svg)](../../actions/workflows/cd-deploy.yaml)
+
+---
+
 ## 📄 Лицензия
 
 © 2026 Arizona Lavka Marketplace. Все права защищены.
@@ -864,5 +967,5 @@ arizonalavka/
 
 ---
 
-**Версия:** 3.0.0  
+**Версия:** 3.1.0
 **Последнее обновление:** 2026-03-01

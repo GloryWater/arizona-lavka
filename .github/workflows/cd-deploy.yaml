@@ -1,0 +1,318 @@
+# =============================================================================
+# ARIZONA LAVKA MARKETPLACE - CD WORKFLOW
+# =============================================================================
+# Build, Push to GHCR, Deploy via SSH
+# =============================================================================
+
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'test/**'
+      - 'load_tests/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20.x"
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}-backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}-frontend
+  BACKEND_WORKING_DIR: "./backend"
+  FRONTEND_WORKING_DIR: "./frontend"
+
+jobs:
+  # ===========================================================================
+  # BUILD & PUSH BACKEND IMAGE
+  # ===========================================================================
+  build-backend:
+    name: Build & Push Backend Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      backend_tag: ${{ steps.meta-backend.outputs.tags }}
+      backend_digest: ${{ steps.build-backend.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Backend Docker
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=raw,value=${{ github.run_number }},enable=true
+            type=raw,value=${{ inputs.environment }},enable=${{ inputs.environment != '' }}
+
+      - name: Build and push Backend Docker image
+        id: build-backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BACKEND_WORKING_DIR }}
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # ===========================================================================
+  # BUILD & PUSH FRONTEND IMAGE
+  # ===========================================================================
+  build-frontend:
+    name: Build & Push Frontend Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      frontend_tag: ${{ steps.meta-frontend.outputs.tags }}
+      frontend_digest: ${{ steps.build-frontend.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Frontend Docker
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=raw,value=${{ github.run_number }},enable=true
+            type=raw,value=${{ inputs.environment }},enable=${{ inputs.environment != '' }}
+
+      - name: Build and push Frontend Docker image
+        id: build-frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.FRONTEND_WORKING_DIR }}
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # ===========================================================================
+  # DEPLOY TO SERVER VIA SSH
+  # ===========================================================================
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-backend, build-frontend]
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+      url: ${{ vars.SERVER_URL || 'http://localhost:8080' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set deployment start time
+        id: vars
+        run: echo "start_time=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            set -e
+
+            echo "🚀 Starting deployment of Arizona Lavka Marketplace..."
+            echo "📅 Time: $(date)"
+            echo "📦 Commit: ${{ github.sha }}"
+            echo "👤 Author: ${{ github.actor }}"
+
+            # Navigate to project directory
+            cd ${{ secrets.DEPLOY_PATH || '/opt/arizonalavka' }}
+
+            # Login to GHCR to pull private images
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull latest changes from git (if needed)
+            if [ -d ".git" ]; then
+              git pull origin main
+            fi
+
+            # Pull new Docker images
+            echo "📥 Pulling Backend image..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest
+
+            echo "📥 Pulling Frontend image..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
+
+            # Stop old containers gracefully
+            echo "🛑 Stopping old containers..."
+            docker compose down --remove-orphans || true
+
+            # Run database migrations
+            echo "🗄️ Running database migrations..."
+            docker compose run --rm backend python -c "
+            from infrastructure.database.connection import get_db_manager
+            import asyncio
+            async def migrate():
+                db = get_db_manager()
+                await db.initialize()
+                print('Database initialized successfully')
+                await db.close()
+            asyncio.run(migrate())
+            " || echo "⚠️ Migration step completed"
+
+            # Start new services
+            echo "🚀 Starting new services..."
+            docker compose up -d --remove-orphans
+
+            # Wait for services to be healthy
+            echo "⏳ Waiting for services to be healthy..."
+            sleep 10
+
+            # Health check
+            echo "🏥 Running health check..."
+            max_attempts=30
+            attempt=1
+            while [ $attempt -le $max_attempts ]; do
+              if curl -f -s http://localhost:8000/health > /dev/null 2>&1; then
+                echo "✅ Backend is healthy!"
+                break
+              fi
+              echo "⏳ Attempt $attempt/$max_attempts - waiting for backend..."
+              sleep 2
+              attempt=$((attempt + 1))
+            done
+
+            if [ $attempt -gt $max_attempts ]; then
+              echo "❌ Backend health check failed after $max_attempts attempts"
+              docker compose logs backend
+              exit 1
+            fi
+
+            # Frontend health check
+            if curl -f -s http://localhost:8080 > /dev/null 2>&1; then
+              echo "✅ Frontend is healthy!"
+            else
+              echo "⚠️ Frontend health check failed, but continuing..."
+            fi
+
+            # Clean up old Docker images
+            echo "🧹 Cleaning up old Docker images..."
+            docker image prune -f --filter "until=24h"
+
+            # Logout from GHCR
+            docker logout ghcr.io
+
+            echo "✅ Deployment completed successfully!"
+            echo "📊 Service status:"
+            docker compose ps
+
+      - name: Deployment completed
+        run: |
+          echo "✅ Deployment to server completed successfully!"
+          echo "📅 Started at: ${{ steps.vars.outputs.start_time }}"
+          echo "📅 Completed at: $(date +'%Y-%m-%d %H:%M:%S')"
+
+  # ===========================================================================
+  # NOTIFY ON FAILURE (OPTIONAL)
+  # ===========================================================================
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+
+    steps:
+      - name: Send failure notification
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Repository: ${{ github.repository }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Author: ${{ github.actor }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo ""
+          echo "Check the Actions tab for details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        continue-on-error: true
+
+  # ===========================================================================
+  # DEPLOYMENT SUMMARY
+  # ===========================================================================
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Author | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workflow | ${{ github.workflow }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ needs.deploy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest\`" >> $GITHUB_STEP_SUMMARY

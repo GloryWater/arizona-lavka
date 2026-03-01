@@ -1,9 +1,300 @@
+# =============================================================================
+# ARIZONA LAVKA MARKETPLACE - PROJECT CONFIGURATION
+# =============================================================================
+
 [project]
 name = "arizonalavka"
-version = "0.1.0"
-description = "Add your description here"
+version = "3.1.0"
+description = "Arizona Lavka Marketplace - BFF for Arizona RP (GTA 5 Online)"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "locust>=2.43.3",
+license = { text = "Proprietary" }
+authors = [
+    { name = "Arizona Lavka Team" }
 ]
+keywords = [
+    "marketplace",
+    "arizona-rp",
+    "gta5",
+    "fastapi",
+    "react",
+    "trading"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    # Web Framework
+    "fastapi>=0.109",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+    # Database
+    "sqlalchemy>=2.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "psycopg2-binary>=2.9",
+    # Validation
+    "pydantic>=2.6",
+    "pydantic-settings>=2.1",
+    # Authentication
+    "pyjwt>=2.8",
+    "python-jose[cryptography]>=3.3",
+    "bcrypt>=4.1",
+    # HTTP Client
+    "httpx>=0.26",
+    # Caching
+    "cachetools>=5.3",
+    # Utils
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Linting & Formatting
+    "ruff>=0.9",
+    # Type Checking
+    "mypy>=1.14",
+    # Security
+    "bandit>=1.8",
+    "pip-audit>=2.7",
+    # Testing
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.23",
+    # Pre-commit
+    "pre-commit>=4.0",
+    # Load Testing
+    "locust>=2.43",
+]
+
+# =============================================================================
+# RUFF CONFIGURATION
+# =============================================================================
+
+[tool.ruff]
+# Целевая версия Python
+target-version = "py312"
+
+# Максимальная длина строки
+line-length = 100
+
+# Исключаемые пути
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    "*.egg-info",
+    ".mypy_cache",
+    ".pytest_cache",
+]
+
+# =============================================================================
+# НАСТРОЙКИ LINT
+# =============================================================================
+
+[tool.ruff.lint]
+# Включенные правила
+select = [
+    # Pyflakes
+    "F",
+    # Pycodestyle (E, W)
+    "E",
+    "W",
+    # Flake8-comprehensions
+    "C4",
+    # Flake8-bugbear
+    "B",
+    # Flake8-quotes
+    "Q",
+    # Pyupgrade
+    "UP",
+    # Isort
+    "I",
+    # Flake8-gettext
+    "INT",
+    # Flake8-blind-except
+    "BLE",
+    # Flake8-debugger
+    "T10",
+    # Flake8-errmsg
+    "EM",
+    # Flake8-bandit (security)
+    "S",
+    # Pylint
+    "PL",
+    # Ruff-specific rules
+    "RUF",
+    # Perflint
+    "PERF",
+    # Flake8-simplify
+    "SIM",
+    # Flake8-use-pathlib
+    "PTH",
+    # Flake8-todos
+    "TD",
+    # Flake8-async
+    "ASYNC",
+]
+
+# Игнорируемые правила
+ignore = [
+    "E501",      # line too long (ruff format сам форматирует)
+    "COM812",    # missing trailing comma (ruff format обрабатывает)
+    "ISC001",    # implicit string concatenation
+    "S101",      # assert (нужен для тестов)
+    "S104",      # possible binding to all interfaces (для dev нормально)
+    "PLR0913",   # too many arguments
+    "PLR2004",   # magic value comparison
+    "TD002",     # missing author in TODO
+    "TD003",     # missing issue link in TODO
+    "ASYNC109",  # async function without await
+]
+
+# =============================================================================
+# НАСТРОЙКИ ИМПОРТОВ (ISORT)
+# =============================================================================
+
+[tool.ruff.lint.isort]
+# Стили импортов
+force-single-line = false
+single-line-exclusions = ["typing"]
+lines-between-types = 1
+lines-after-imports = 2
+
+# Сортировка
+force-sort-within-sections = false
+known-first-party = [
+    "application",
+    "infrastructure",
+    "interfaces",
+    "routes",
+    "services",
+    "domain",
+    "core",
+    "config",
+    "models",
+    "database",
+    "error_handler",
+    "exceptions",
+    "dependencies",
+    "rate_limiter",
+]
+known-third-party = [
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy",
+    "asyncpg",
+    "pydantic",
+    "httpx",
+    "cachetools",
+    "jwt",
+    "bcrypt",
+    "alembic",
+]
+
+# Форматирование
+force-wrap-aliases = true
+combine-as-imports = true
+
+# =============================================================================
+# НАСТРОЙКИ PYLINT
+# =============================================================================
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-branches = 15
+max-returns = 10
+max-statements = 60
+max-public-methods = 25
+
+# =============================================================================
+# НАСТРОЙКИ PYUPGRADE
+# =============================================================================
+
+[tool.ruff.lint.pyupgrade]
+# Сохранять типы для аннотаций
+keep-runtime-typing = true
+
+# =============================================================================
+# НАСТРОЙКИ FLAKE8-QUOTES
+# =============================================================================
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+multiline-quotes = "double"
+docstring-quotes = "double"
+
+# =============================================================================
+# НАСТРОЙКИ FLAKE8-ERRMSG
+# =============================================================================
+
+[tool.ruff.lint.flake8-errmsg]
+# Максимальная длина сообщения об ошибке
+max-string-length = 20
+
+# =============================================================================
+# НАСТРОЙКИ ДЛЯ КОНКРЕЕТНЫХ ФАЙЛОВ
+# =============================================================================
+
+[tool.ruff.lint.per-file-ignores]
+# Тесты - разрешить assert и magic values
+"test/**/*.py" = ["S101", "PLR2004", "ARG001"]
+"tests/**/*.py" = ["S101", "PLR2004", "ARG001"]
+
+# Миграции - разрешить wildcard imports
+"backend/alembic/versions/*.py" = ["F401", "F403"]
+"alembic/versions/*.py" = ["F401", "F403"]
+
+# Конфигурация - разрешить wildcard imports
+"backend/config.py" = ["F401", "F403"]
+
+# __init__.py файлы - разрешить unused imports для экспорта
+"**/__init__.py" = ["F401", "F403"]
+
+# Скрипты - разрешить binding to all interfaces
+"scripts/*.py" = ["S104"]
+
+# =============================================================================
+# ФОРМАТИРОВАНИЕ
+# =============================================================================
+
+[tool.ruff.format]
+# Использовать двойные кавычки
+quote-style = "double"
+
+# Отступы
+indent-style = "space"
+indent-width = 4
+
+# Длина строки
+line-length = 100
+
+# Перенос строк
+skip-magic-trailing-comma = false
+
+# Окончание строк
+line-ending = "lf"
+
+# Docstring code формат
+docstring-code-format = true
+docstring-code-line-length = 80
+
+# =============================================================================
+# PYDOCSTYLE (DOCSTRING)
+# =============================================================================
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

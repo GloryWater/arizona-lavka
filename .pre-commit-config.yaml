@@ -1,0 +1,196 @@
+# =============================================================================
+# ARIZONA LAVKA MARKETPLACE - PRE-COMMIT CONFIGURATION
+# =============================================================================
+# Установка: pip install pre-commit && pre-commit install
+# Запуск всех хуков: pre-commit run --all-files
+# =============================================================================
+
+default_language_version:
+  python: python3.12
+  node: 20.0.0
+
+default_stages: [pre-commit, pre-push]
+
+fail_fast: false
+
+repos:
+  # =============================================================================
+  # ОБЩИЕ ХУКИ
+  # =============================================================================
+  
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Проверка синтаксиса и формата
+      - id: check-yaml
+        name: Check YAML syntax
+        args: [--unsafe]
+      - id: check-json
+        name: Check JSON syntax
+      - id: check-toml
+        name: Check TOML syntax
+      
+      # Проверка окончаний строк
+      - id: check-merge-conflict
+        name: Check merge conflicts
+      - id: check-case-conflict
+        name: Check case conflicts
+      
+      # Безопасность
+      - id: detect-private-key
+        name: Detect private keys
+      - id: detect-aws-credentials
+        name: Detect AWS credentials
+        args: [--allow-missing-credentials]
+      
+      # Очистка
+      - id: trailing-whitespace
+        name: Remove trailing whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+        name: Fix end of file
+        exclude: ^frontend/.*$
+      - id: mixed-line-ending
+        name: Fix mixed line endings
+        args: [--fix=lf]
+
+  # =============================================================================
+  # PYTHON / BACKEND ХУКИ
+  # =============================================================================
+  
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.3
+    hooks:
+      # Линтер
+      - id: ruff
+        name: Ruff lint
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi, jupyter]
+      
+      # Форматтер
+      - id: ruff-format
+        name: Ruff format
+        types_or: [python, pyi, jupyter]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        name: MyPy type check
+        additional_dependencies:
+          - pydantic>=2.6
+          - sqlalchemy>=2.0
+          - fastapi>=0.109
+          - asyncpg>=0.29
+          - httpx>=0.26
+          - cachetools>=5.3
+          - pyjwt>=2.8
+          - bcrypt>=4.1
+          - pydantic-settings>=2.1
+        args:
+          - --ignore-missing-imports
+          - --disallow-untyped-defs
+          - --disallow-incomplete-defs
+          - --check-untyped-defs
+          - --no-implicit-optional
+          - --warn-redundant-casts
+          - --warn-unused-ignores
+        exclude: ^tests/|^test/
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        name: Bandit security check
+        args: [-c, .bandit.yaml, -r]
+        files: ^backend/
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        name: Remove unused imports
+        args:
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --expand-star-imports
+          - --ignore-init-module-imports
+        types: [python]
+
+  # =============================================================================
+  # FRONTEND / TYPESCRIPT ХУКИ
+  # =============================================================================
+  
+  - repo: local
+    hooks:
+      # TypeScript проверка через локальный скрипт
+      - id: frontend-type-check
+        name: TypeScript type check
+        entry: bash -c 'cd frontend && npm run type-check 2>/dev/null || npx tsc --noEmit'
+        language: system
+        types_or: [typescript, tsx]
+        files: ^frontend/src/
+        pass_filenames: false
+      
+      # ESLint проверка
+      - id: frontend-lint
+        name: ESLint check
+        entry: bash -c 'cd frontend && npm run lint 2>/dev/null || npx eslint . --ext ts,tsx --max-warnings 0'
+        language: system
+        types_or: [typescript, tsx]
+        files: ^frontend/src/
+        pass_filenames: false
+      
+      # Prettier форматирование (если установлен)
+      - id: frontend-format
+        name: Prettier format
+        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,css,md}" 2>/dev/null || true'
+        language: system
+        types_or: [typescript, tsx, javascript, jsx, json]
+        files: ^frontend/src/
+        pass_filenames: false
+        require_serial: true
+
+  # =============================================================================
+  # DOCKER ХУКИ
+  # =============================================================================
+  
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: Dockerfile lint
+        args: [--ignore, DL3008, --ignore, DL3013, --ignore, DL3003]
+        files: Dockerfile$|Dockerfile\.[^/]*$
+
+  # =============================================================================
+  # SECRET SCANNING
+  # =============================================================================
+  
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            package-lock\.json|
+            yarn\.lock|
+            uv\.lock|
+            .*\.lock|
+            .*\.min\.js|
+            .*\.svg|
+            test/.*
+          )$
+
+  # =============================================================================
+  # КОММИТ-ЛИНТЕР (опционально)
+  # =============================================================================
+  
+  # - repo: https://github.com/commitizen-tools/commitizen
+  #   rev: v3.29.0
+  #   hooks:
+  #     - id: commitizen
+  #       name: Commitizen lint
+  #       stages: [commit-msg]
