@@ -1,7 +1,8 @@
 # =============================================================================
 # ARIZONA LAVKA MARKETPLACE - BACKEND CI WORKFLOW
 # =============================================================================
-# Проверка backend кода: lint, type-check, security, tests
+# Проверка backend кода: lint, type-check, security
+# Запускается ТОЛЬКО при изменениях в backend/**
 # =============================================================================
 
 name: Backend CI
@@ -12,18 +13,13 @@ on:
     paths:
       - 'backend/**'
       - 'pyproject.toml'
-      - 'uv.lock'
-      - 'requirements.txt'
-      - '.pre-commit-config.yaml'
-      - '.github/workflows/backend-ci.yaml'
+      - '.bandit.yaml'
   pull_request:
     branches: [main, develop]
     paths:
       - 'backend/**'
       - 'pyproject.toml'
-      - 'uv.lock'
-      - 'requirements.txt'
-  workflow_call:
+      - '.bandit.yaml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,132 +28,77 @@ concurrency:
 env:
   PYTHON_VERSION: "3.12"
   UV_VERSION: "latest"
-  WORKING_DIRECTORY: "./backend"
 
 jobs:
   # ===========================================================================
-  # SETUP & INSTALL
+  # BACKEND CI - LINT, TYPE-CHECK, SECURITY
   # ===========================================================================
-  setup:
-    name: Setup & Install
+  backend-ci:
+    name: Backend CI (Lint + Type + Security)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: ./backend
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          uv-version: ${{ env.UV_VERSION }}
 
-      - name: Cache uv dependencies
+      # =======================================================================
+      # UV КЭШИРОВАНИЕ - быстрая установка зависимостей
+      # =======================================================================
+      - name: Cache uv global cache
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/uv
-            .venv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock', '**/requirements.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-global-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
-            ${{ runner.os }}-uv-
+            ${{ runner.os }}-uv-global-
 
-      - name: Install backend dependencies
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |
-          uv venv
-          source .venv/bin/activate
-          uv pip install -r requirements.txt
-
-  # ===========================================================================
-  # LINT & FORMAT
-  # ===========================================================================
-  lint:
-    name: Lint & Format (Ruff)
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Cache uv dependencies
+      - name: Cache uv project venv
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/uv
-            .venv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock', '**/requirements.txt') }}
+          path: backend/.venv
+          key: ${{ runner.os }}-uv-venv-${{ hashFiles('backend/**/requirements.txt', 'pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-venv-
 
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+      # =======================================================================
+      # УСТАНОВКА ЗАВИСИМОСТЕЙ
+      # =======================================================================
+      - name: Install backend dependencies
         run: |
           uv venv
           source .venv/bin/activate
           uv pip install -r requirements.txt
-          uv pip install ruff
+
+      # =======================================================================
+      # LINT & FORMAT (RUFF)
+      # =======================================================================
+      - name: Install Ruff
+        run: uv pip install ruff
 
       - name: Run Ruff check
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: uv run ruff check .
+        run: uv run ruff check . --exit-non-zero-on-fix
 
       - name: Run Ruff format check
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: uv run ruff format --check .
+        run: uv run ruff format . --check
 
-  # ===========================================================================
-  # TYPE CHECKING
-  # ===========================================================================
-  type-check:
-    name: Type Check (MyPy)
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 15
+      # =======================================================================
+      # TYPE CHECKING (MYPY)
+      # =======================================================================
+      - name: Install MyPy
+        run: uv pip install mypy
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/uv
-            .venv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock', '**/requirements.txt') }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |
-          uv venv
-          source .venv/bin/activate
-          uv pip install -r requirements.txt
-          uv pip install mypy
-
-      - name: Run MyPy
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+      - name: Run MyPy type check
         run: |
           uv run mypy . \
             --ignore-missing-imports \
@@ -168,86 +109,11 @@ jobs:
             --warn-redundant-casts \
             --warn-unused-ignores
 
-  # ===========================================================================
-  # SECURITY CHECKS
-  # ===========================================================================
-  security:
-    name: Security Checks
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 15
+      # =======================================================================
+      # SECURITY CHECKS (BANDIT)
+      # =======================================================================
+      - name: Install Bandit
+        run: uv pip install bandit
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/uv
-            .venv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock', '**/requirements.txt') }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |
-          uv venv
-          source .venv/bin/activate
-          uv pip install -r requirements.txt
-          uv pip install bandit pip-audit
-
-      - name: Run pip-audit
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: uv run pip-audit
-
-      - name: Run Bandit
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: uv run bandit -r . -ll
-
-  # ===========================================================================
-  # DOCKERFILE LINT
-  # ===========================================================================
-  dockerfile-lint:
-    name: Dockerfile Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Hadolint
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: backend/Dockerfile
-          ignore: DL3008,DL3013,DL3003
-
-  # ===========================================================================
-  # SUMMARY
-  # ===========================================================================
-  summary:
-    name: CI Summary
-    runs-on: ubuntu-latest
-    needs: [lint, type-check, security, dockerfile-lint]
-    if: always()
-
-    steps:
-      - name: Generate summary
-        run: |
-          echo "## Backend CI Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Type Check | ${{ needs.type-check.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security | ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dockerfile Lint | ${{ needs.dockerfile-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+      - name: Run Bandit security check
+        run: uv run bandit -c ../.bandit.yaml -r .

@@ -2,6 +2,7 @@
 # ARIZONA LAVKA MARKETPLACE - CD WORKFLOW
 # =============================================================================
 # Build, Push to GHCR, Deploy via SSH
+# Запускается при push в main branch
 # =============================================================================
 
 name: CD - Deploy to Production
@@ -36,10 +37,49 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME_BACKEND: ${{ github.repository }}-backend
   IMAGE_NAME_FRONTEND: ${{ github.repository }}-frontend
-  BACKEND_WORKING_DIR: "./backend"
-  FRONTEND_WORKING_DIR: "./frontend"
 
 jobs:
+  # ===========================================================================
+  # ПРОВЕРКА SECRETS - fail-safe проверка перед деплоем
+  # ===========================================================================
+  check-secrets:
+    name: Check Required Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      secrets_valid: ${{ steps.check.outputs.secrets_valid }}
+
+    steps:
+      - name: Validate required secrets exist
+        id: check
+        run: |
+          set -e
+          errors=0
+
+          if [ -z "${{ secrets.SERVER_HOST }}" ]; then
+            echo "::error::Missing required secret: SERVER_HOST"
+            errors=$((errors + 1))
+          fi
+
+          if [ -z "${{ secrets.SERVER_USERNAME }}" ]; then
+            echo "::error::Missing required secret: SERVER_USERNAME"
+            errors=$((errors + 1))
+          fi
+
+          if [ -z "${{ secrets.SERVER_SSH_KEY }}" ]; then
+            echo "::error::Missing required secret: SERVER_SSH_KEY"
+            errors=$((errors + 1))
+          fi
+
+          if [ $errors -gt 0 ]; then
+            echo "::error::Found $errors missing secrets. Please configure all required secrets in repository settings."
+            echo "Required secrets: SERVER_HOST, SERVER_USERNAME, SERVER_SSH_KEY"
+            exit 1
+          fi
+
+          echo "secrets_valid=true" >> $GITHUB_OUTPUT
+          echo "✅ All required secrets are configured"
+
   # ===========================================================================
   # BUILD & PUSH BACKEND IMAGE
   # ===========================================================================
@@ -47,6 +87,7 @@ jobs:
     name: Build & Push Backend Image
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [check-secrets]
     permissions:
       contents: read
       packages: write
@@ -79,13 +120,12 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=raw,value=${{ github.run_number }},enable=true
-            type=raw,value=${{ inputs.environment }},enable=${{ inputs.environment != '' }}
 
       - name: Build and push Backend Docker image
         id: build-backend
         uses: docker/build-push-action@v6
         with:
-          context: ${{ env.BACKEND_WORKING_DIR }}
+          context: ./backend
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
@@ -100,6 +140,7 @@ jobs:
     name: Build & Push Frontend Image
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [check-secrets]
     permissions:
       contents: read
       packages: write
@@ -132,13 +173,12 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=raw,value=${{ github.run_number }},enable=true
-            type=raw,value=${{ inputs.environment }},enable=${{ inputs.environment != '' }}
 
       - name: Build and push Frontend Docker image
         id: build-frontend
         uses: docker/build-push-action@v6
         with:
-          context: ${{ env.FRONTEND_WORKING_DIR }}
+          context: ./frontend
           push: true
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
@@ -153,9 +193,9 @@ jobs:
     name: Deploy to Server
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-backend, build-frontend]
+    needs: [check-secrets, build-backend, build-frontend]
     environment:
-      name: ${{ inputs.environment || 'production' }}
+      name: ${{ github.event.inputs.environment || 'production' }}
       url: ${{ vars.SERVER_URL || 'http://localhost:8080' }}
 
     steps:
@@ -166,6 +206,9 @@ jobs:
         id: vars
         run: echo "start_time=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
 
+      # =========================================================================
+      # DEPLOY VIA SSH - appleboy/ssh-action
+      # =========================================================================
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -173,6 +216,7 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             set -e
 
@@ -182,15 +226,11 @@ jobs:
             echo "👤 Author: ${{ github.actor }}"
 
             # Navigate to project directory
-            cd ${{ secrets.DEPLOY_PATH || '/opt/arizonalavka' }}
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/arizonalavka' }}"
+            cd "$DEPLOY_PATH"
 
             # Login to GHCR to pull private images
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Pull latest changes from git (if needed)
-            if [ -d ".git" ]; then
-              git pull origin main
-            fi
 
             # Pull new Docker images
             echo "📥 Pulling Backend image..."
@@ -224,8 +264,8 @@ jobs:
             echo "⏳ Waiting for services to be healthy..."
             sleep 10
 
-            # Health check
-            echo "🏥 Running health check..."
+            # Health check - Backend
+            echo "🏥 Running backend health check..."
             max_attempts=30
             attempt=1
             while [ $attempt -le $max_attempts ]; do
@@ -241,10 +281,12 @@ jobs:
             if [ $attempt -gt $max_attempts ]; then
               echo "❌ Backend health check failed after $max_attempts attempts"
               docker compose logs backend
+              docker logout ghcr.io
               exit 1
             fi
 
-            # Frontend health check
+            # Health check - Frontend
+            echo "🏥 Running frontend health check..."
             if curl -f -s http://localhost:8080 > /dev/null 2>&1; then
               echo "✅ Frontend is healthy!"
             else
@@ -269,12 +311,12 @@ jobs:
           echo "📅 Completed at: $(date +'%Y-%m-%d %H:%M:%S')"
 
   # ===========================================================================
-  # NOTIFY ON FAILURE (OPTIONAL)
+  # NOTIFY ON FAILURE
   # ===========================================================================
   notify-failure:
     name: Notify on Failure
     runs-on: ubuntu-latest
-    needs: deploy
+    needs: [deploy]
     if: failure()
 
     steps:

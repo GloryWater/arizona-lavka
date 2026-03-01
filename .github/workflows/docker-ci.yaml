@@ -1,0 +1,100 @@
+# =============================================================================
+# ARIZONA LAVKA MARKETPLACE - DOCKER CI WORKFLOW
+# =============================================================================
+# Проверка Docker инфраструктуры: Dockerfile lint + docker-compose build test
+# Запускается ТОЛЬКО при изменениях в Docker файлах
+# =============================================================================
+
+name: Docker CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'docker-compose.yml'
+      - '**/Dockerfile'
+      - '**/Dockerfile.*'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'docker-compose.yml'
+      - '**/Dockerfile'
+      - '**/Dockerfile.*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===========================================================================
+  # HADOLINT - LINT ВСЕХ DOCKERFILE
+  # ===========================================================================
+  dockerfile-lint:
+    name: Dockerfile Lint (Hadolint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Hadolint on backend/Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+          ignore: DL3008,DL3013,DL3003
+
+      - name: Run Hadolint on frontend/Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile
+          ignore: DL3008,DL3013,DL3003,DL3018
+
+  # ===========================================================================
+  # DOCKER-COMPOSE BUILD TEST - dry-run проверка сборки
+  # ===========================================================================
+  docker-compose-build:
+    name: Docker Compose Build Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # =======================================================================
+      # КЭШИРОВАНИЕ DOCKER BUILD
+      # =======================================================================
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # =======================================================================
+      # DOCKER-COMPOSE BUILD (DRY-RUN)
+      # =======================================================================
+      - name: Build services with docker-compose
+        run: |
+          docker compose build --progress=plain \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # =======================================================================
+      # ПРОВЕРКА ЗАПУСКА СЕРВИСОВ
+      # =======================================================================
+      - name: Validate docker-compose configuration
+        run: docker compose config
+
+      # =======================================================================
+      # ОЧИСТКА КЭША
+      # =======================================================================
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
