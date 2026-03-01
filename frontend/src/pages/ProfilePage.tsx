@@ -1,201 +1,445 @@
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import apiClient from '../api/marketplace';
-import { UserProfile, ConfigHistoryItem } from '../types';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { ErrorState } from '../components/states/ErrorState';
-import { User, Mail, Calendar, FileText, Download, TrendingUp } from 'lucide-react';
-import { formatDate } from '../utils/constants';
+import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
+import {
+  User,
+  Mail,
+  Calendar,
+  Shield,
+  Crown,
+  LogOut,
+  Save,
+  Key,
+  Eye,
+  EyeOff,
+  Lock,
+  Download,
+  FileText,
+} from 'lucide-react';
+import { useAuthStore } from '@/features/auth/model/useAuthStore';
+import { useToast } from '@/shared/ui/Toast';
+import { authApi, configApi } from '@/shared/api';
+import {
+  Card,
+  CardContent,
+  Button,
+  Input,
+  Badge,
+  EmptyState,
+} from '@/shared/ui';
+import { formatDate } from '@/shared/lib/helpers';
 
 export function ProfilePage() {
-  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [configs, setConfigs] = useState<ConfigHistoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  const { user, logout, refreshUser } = useAuthStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    first_name: user?.first_name || '',
+    last_name: user?.last_name || '',
+  });
+  const [passwordData, setPasswordData] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      if (!user) {
-        navigate('/login');
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const [profileResponse, configsResponse] = await Promise.all([
-          apiClient.get<UserProfile>('/user/profile'),
-          apiClient.get<ConfigHistoryItem[]>('/config/history?limit=10'),
-        ]);
-
-        setProfile(profileResponse.data);
-        setConfigs(configsResponse.data);
-        // Не вызываем refreshUser() здесь, чтобы избежать бесконечного цикла
-        // Данные пользователя уже актуальны из /user/profile
-      } catch (err) {
-        setError('Ошибка загрузки профиля');
-        console.error('Error loading profile:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadProfile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, navigate]); // Убрали refreshUser из зависимостей
-
-  const handleDownloadConfig = async (configId: number, mode: string, serverId: number) => {
+  const handleSaveProfile = async () => {
+    setIsLoading(true);
     try {
-      const response = await apiClient.get(`/config/history/${configId}`, {
-        responseType: 'blob',
-      });
-
-      const blob = new Blob([response.data], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `config_${mode.toLowerCase()}_${serverId}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Error downloading config:', err);
+      await authApi.updateProfile(formData);
+      await refreshUser();
+      toast.success('Профиль успешно обновлен');
+      setIsEditing(false);
+    } catch {
+      toast.error('Не удалось обновить профиль', 'Ошибка');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (isLoading) {
+  const handleChangePassword = async () => {
+    setPasswordErrors({});
+
+    if (passwordData.new_password.length < 8) {
+      setPasswordErrors({ new_password: 'Пароль должен быть не менее 8 символов' });
+      return;
+    }
+
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      setPasswordErrors({ confirm_password: 'Пароли не совпадают' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await authApi.changePassword(
+        passwordData.current_password,
+        passwordData.new_password
+      );
+      toast.success('Пароль успешно изменен');
+      setPasswordData({
+        current_password: '',
+        new_password: '',
+        confirm_password: '',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Не удалось изменить пароль';
+      toast.error(message, 'Ошибка');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
+
+  const handleDownloadConfig = async (configId: number) => {
+    try {
+      const response = await configApi.download(configId);
+      const url = window.URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = response.filename ?? `config_${configId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Конфиг скачан', 'Успешно');
+    } catch {
+      toast.error('Не удалось скачать конфиг', 'Ошибка');
+    }
+  };
+
+  // Загрузка истории конфигов
+  const { data: configHistory } = useQuery({
+    queryKey: ['user-config-history'],
+    queryFn: () => configApi.getHistory(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  if (!user) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+        <EmptyState
+          title="Требуется авторизация"
+          description="Войдите в свой аккаунт для просмотра профиля"
+          icon={<User className="h-16 w-16" />}
+          action={
+            <Button onClick={() => navigate('/login')}>
+              Войти
+            </Button>
+          }
+        />
       </div>
     );
   }
 
-  if (error || !profile) {
-    return <ErrorState title="Ошибка" description={error || 'Профиль не найден'} />;
-  }
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-white mb-8">Профиль</h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Информация о пользователе */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Информация</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="h-16 w-16 bg-primary-600 rounded-full flex items-center justify-center">
-                  <User className="h-8 w-8 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">{profile.username}</h2>
-                  {profile.is_premium && (
-                    <span className="text-xs bg-yellow-600 text-white px-2 py-1 rounded">
-                      Premium
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t border-dark-border pt-4 space-y-3">
-                <div className="flex items-center space-x-3 text-gray-400">
-                  <Mail className="h-5 w-5" />
-                  <span className="text-white">{profile.email}</span>
-                </div>
-
-                <div className="flex items-center space-x-3 text-gray-400">
-                  <Calendar className="h-5 w-5" />
-                  <span className="text-white">
-                    {formatDate(profile.created_at)}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Статистика */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Статистика</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <FileText className="h-5 w-5 text-primary-500" />
-                    <span className="text-gray-400">Конфигов создано</span>
-                  </div>
-                  <span className="text-xl font-bold text-white">
-                    {profile.configs_count}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-4xl mx-auto"
+      >
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+            Профиль
+          </h1>
+          <p className="text-muted-foreground">
+            Управление настройками аккаунта
+          </p>
         </div>
 
-        {/* История конфигов */}
-        <div className="lg:col-span-2">
+        <div className="space-y-6">
+          {/* Profile Info */}
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>История конфигов</CardTitle>
-                <span className="text-sm text-gray-400">
-                  Последние {configs.length} конфигов
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {configs.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>У вас пока нет созданных конфигов</p>
-                  <button
-                    onClick={() => navigate('/config-generator')}
-                    className="mt-4 text-primary-500 hover:text-primary-400"
-                  >
-                    Создать первый конфиг →
-                  </button>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center space-x-4">
+                  <div className="h-20 w-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+                    <User className="h-10 w-10 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-foreground">
+                      {user.username}
+                    </h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant={user.role === 'admin' ? 'destructive' : 'primary'}>
+                        {user.role === 'admin' ? (
+                          <>
+                            <Shield className="h-3 w-3" />
+                            Администратор
+                          </>
+                        ) : (
+                          <>
+                            <User className="h-3 w-3" />
+                            Пользователь
+                          </>
+                        )}
+                      </Badge>
+                      {user.is_premium && (
+                        <Badge variant="warning">
+                          <Crown className="h-3 w-3" />
+                          Premium
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
                 </div>
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                  icon={<LogOut className="h-4 w-4" />}
+                >
+                  Выход
+                </Button>
+              </div>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
+                  <Mail className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="font-medium">{user.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
+                  <Calendar className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Зарегистрирован
+                    </p>
+                    <p className="font-medium">{formatDate(user.created_at)}</p>
+                  </div>
+                </div>
+                {user.last_active_at && (
+                  <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
+                    <User className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        Последняя активность
+                      </p>
+                      <p className="font-medium">{formatDate(user.last_active_at)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Edit Name */}
+              <div className="border-t border-border pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-foreground">
+                    Личная информация
+                  </h3>
+                  {!isEditing && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      Редактировать
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Имя"
+                    value={formData.first_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, first_name: e.target.value })
+                    }
+                    disabled={!isEditing}
+                    icon={<User className="h-5 w-5" />}
+                  />
+                  <Input
+                    label="Фамилия"
+                    value={formData.last_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, last_name: e.target.value })
+                    }
+                    disabled={!isEditing}
+                    icon={<User className="h-5 w-5" />}
+                  />
+                </div>
+
+                {isEditing && (
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setIsEditing(false)}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      onClick={handleSaveProfile}
+                      isLoading={isLoading}
+                      icon={<Save className="h-4 w-4" />}
+                    >
+                      Сохранить
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Change Password */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <Key className="h-5 w-5 text-muted-foreground" />
+                <h3 className="font-semibold text-foreground">
+                  Смена пароля
+                </h3>
+              </div>
+
+              <div className="space-y-4">
+                <Input
+                  label="Текущий пароль"
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  value={passwordData.current_password}
+                  onChange={(e) =>
+                    setPasswordData({
+                      ...passwordData,
+                      current_password: e.target.value,
+                    })
+                  }
+                  icon={<Lock className="h-5 w-5" />}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showCurrentPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </Input>
+
+                <Input
+                  label="Новый пароль"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={passwordData.new_password}
+                  onChange={(e) =>
+                    setPasswordData({
+                      ...passwordData,
+                      new_password: e.target.value,
+                    })
+                  }
+                  error={passwordErrors.new_password}
+                  icon={<Lock className="h-5 w-5" />}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </Input>
+
+                <Input
+                  label="Подтверждение нового пароля"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={passwordData.confirm_password}
+                  onChange={(e) =>
+                    setPasswordData({
+                      ...passwordData,
+                      confirm_password: e.target.value,
+                    })
+                  }
+                  error={passwordErrors.confirm_password}
+                  icon={<Lock className="h-5 w-5" />}
+                />
+
+                <Button
+                  onClick={handleChangePassword}
+                  isLoading={isLoading}
+                  icon={<Key className="h-4 w-4" />}
+                >
+                  Изменить пароль
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Config History */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <h3 className="font-semibold text-foreground">
+                  История конфигов
+                </h3>
+              </div>
+
+              {!configHistory || configHistory.length === 0 ? (
+                <EmptyState
+                  title="Нет конфигов"
+                  description="Вы ещё не сгенерировали ни одного конфига"
+                  icon={<FileText className="h-16 w-16" />}
+                />
               ) : (
                 <div className="space-y-3">
-                  {configs.map((config) => (
+                  {configHistory.slice(0, 10).map((config) => (
                     <div
                       key={config.id}
-                      className="flex items-center justify-between p-4 bg-dark-border rounded-lg"
+                      className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
                     >
-                      <div className="flex items-center space-x-4">
-                        <div className="h-10 w-10 bg-primary-600/20 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="h-5 w-5 text-primary-500" />
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                          <FileText className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-white font-medium">
-                            {config.server_name}
-                          </h3>
-                          <p className="text-sm text-gray-400">
-                            {config.mode === 'SELL' ? 'Продажа' : 'Покупка'} •{' '}
-                            {config.items_count} предметов •{' '}
-                            {config.percentage >= 0 ? '+' : ''}{config.percentage}%
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground">
+                              {config.server_name}
+                            </p>
+                            <Badge variant={config.mode === 'SELL' ? 'success' : 'primary'}>
+                              {config.mode === 'SELL' ? 'Продажа' : 'Скупка'}
+                            </Badge>
+                            <Badge variant="neutral">
+                              {config.items_count} предметов
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(config.created_at).toLocaleString('ru-RU')}
+                            {config.percentage !== 0 && (
+                              <span className="ml-2">
+                                ({config.percentage > 0 ? '+' : ''}{config.percentage}%)
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => handleDownloadConfig(config.id, config.mode, config.server_id)}
-                        className="p-2 text-gray-400 hover:text-white transition-colors"
-                        title="Скачать"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadConfig(config.id)}
+                        icon={<Download className="h-4 w-4" />}
                       >
-                        <Download className="h-5 w-5" />
-                      </button>
+                        Скачать
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -203,7 +447,7 @@ export function ProfilePage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

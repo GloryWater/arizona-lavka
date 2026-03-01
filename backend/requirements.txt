@@ -7,6 +7,7 @@ python-multipart==0.0.9
 sqlalchemy==2.0.25
 asyncpg==0.29.0
 alembic==1.13.1
+psycopg2-binary==2.9.9
 
 # Validation
 pydantic==2.6.1

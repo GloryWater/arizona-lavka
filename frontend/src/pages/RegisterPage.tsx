@@ -1,155 +1,232 @@
-import React, { useState, FormEvent } from 'react';
+'use client';
+
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { Button } from '../components/ui/Button';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { ShoppingBag, Lock, Mail, User as UserIcon } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { UserPlus, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { useAuthStore } from '@/features/auth/model/useAuthStore';
+import { useToast } from '@/shared/ui/Toast';
+import {
+  Card,
+  CardContent,
+  Button,
+  Input,
+} from '@/shared/ui';
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { register } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const toast = useToast();
+  const { register, isLoading } = useAuthStore();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
+    confirmPassword: '',
     first_name: '',
     last_name: '',
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleSubmit = async (e: FormEvent) => {
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (formData.username.length < 3) {
+      newErrors.username = 'Имя должно быть не менее 3 символов';
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Введите корректный email';
+    }
+
+    if (formData.password.length < 8) {
+      newErrors.password = 'Пароль должен быть не менее 8 символов';
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Пароли не совпадают';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setIsLoading(true);
+    
+    if (!validateForm()) return;
 
     try {
-      await register(formData);
+      await register({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        first_name: formData.first_name || undefined,
+        last_name: formData.last_name || undefined,
+      });
+      toast.success('Аккаунт успешно создан');
       navigate('/');
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const errorData = (err as { response?: { data?: { detail?: string } } }).response?.data;
-        setError(errorData?.detail || 'Ошибка регистрации');
-      } else {
-        setError('Ошибка регистрации');
-      }
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      // Ошибка уже обработана в store
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-128px)] flex items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex flex-col items-center">
-            <ShoppingBag className="h-12 w-12 text-primary-500 mb-4" />
-            <CardTitle>Регистрация</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500/10 via-background to-background">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-md"
+      >
+        <Card variant="elevated">
+          <CardContent className="p-8">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                className="mx-auto h-14 w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25 mb-4"
+              >
+                <UserPlus className="h-7 w-7 text-white" />
+              </motion.div>
+              <h1 className="text-2xl font-bold text-foreground mb-2">
+                Создание аккаунта
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Зарегистрируйтесь для доступа ко всем функциям
+              </p>
+            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Имя пользователя
-              </label>
-              <div className="relative">
-                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input
+                label="Имя пользователя"
+                type="text"
+                placeholder="username"
+                value={formData.username}
+                onChange={(e) =>
+                  setFormData({ ...formData, username: e.target.value })
+                }
+                error={errors.username}
+                icon={<User className="h-5 w-5" />}
+                required
+              />
+
+              <Input
+                label="Email"
+                type="email"
+                placeholder="username@example.com"
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                error={errors.email}
+                icon={<Mail className="h-5 w-5" />}
+                required
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Имя (необязательно)"
                   type="text"
-                  className="input w-full pl-10"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  required
-                  placeholder="Username"
-                  pattern="^[a-zA-Z0-9_]+$"
-                  title="Только буквы, цифры и подчёркивания"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="email"
-                  className="input w-full pl-10"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  placeholder="Email"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Пароль
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="password"
-                  className="input w-full pl-10"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  placeholder="Пароль"
-                  minLength={8}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Имя (необязательно)
-                </label>
-                <input
-                  type="text"
-                  className="input w-full"
+                  placeholder="Иван"
                   value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  placeholder="Имя"
+                  onChange={(e) =>
+                    setFormData({ ...formData, first_name: e.target.value })
+                  }
+                  icon={<User className="h-5 w-5" />}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Фамилия (необязательно)
-                </label>
-                <input
+                <Input
+                  label="Фамилия (необязательно)"
                   type="text"
-                  className="input w-full"
+                  placeholder="Иванов"
                   value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  placeholder="Фамилия"
+                  onChange={(e) =>
+                    setFormData({ ...formData, last_name: e.target.value })
+                  }
+                  icon={<User className="h-5 w-5" />}
                 />
               </div>
+
+              <Input
+                label="Пароль"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
+                error={errors.password}
+                icon={<Lock className="h-5 w-5" />}
+                required
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </Input>
+
+              <Input
+                label="Подтверждение пароля"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={formData.confirmPassword}
+                onChange={(e) =>
+                  setFormData({ ...formData, confirmPassword: e.target.value })
+                }
+                error={errors.confirmPassword}
+                icon={<Lock className="h-5 w-5" />}
+                required
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </Input>
+
+              <Button
+                type="submit"
+                className="w-full h-12 text-base"
+                isLoading={isLoading}
+                icon={<UserPlus className="h-5 w-5" />}
+              >
+                {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
+              </Button>
+            </form>
+
+            {/* Footer */}
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Уже есть аккаунт?{' '}
+                <Link
+                  to="/login"
+                  className="text-blue-500 hover:text-blue-600 font-medium transition-colors"
+                >
+                  Войти
+                </Link>
+              </p>
             </div>
-
-            <Button type="submit" className="w-full" isLoading={isLoading}>
-              Зарегистрироваться
-            </Button>
-
-            <p className="text-center text-gray-400 text-sm">
-              Уже есть аккаунт?{' '}
-              <Link to="/login" className="text-primary-500 hover:text-primary-400">
-                Войти
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }

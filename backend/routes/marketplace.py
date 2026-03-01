@@ -28,7 +28,7 @@ def _parse_offers(
 ) -> list[Offer]:
     """
     Парсит данные пользователей в список предложений.
-    
+
     Оптимизация: один проход по данным, предварительная фильтрация серверов.
     """
     offers = []
@@ -39,8 +39,13 @@ def _parse_offers(
         if server_id is not None and user_server != server_id:
             continue
 
+        # Корректная обработка LavkaUid - пропускаем пользователей без лавки
+        lavka_uid_raw = user_data.get("LavkaUid")
+        if lavka_uid_raw is None or lavka_uid_raw == 0:
+            continue
+        lavka_uid = str(lavka_uid_raw)
+
         username = user_data.get("username") or "Unknown"
-        lavka_uid = str(user_data.get("LavkaUid", ""))
         user_status = bool(user_data.get("userStatus", 0))
 
         # Предметы на продажу (SELL)
@@ -128,10 +133,10 @@ def _parse_offers_split(
 ) -> Dict[str, Any]:
     """
     Парсит данные пользователей в разделённые предложения (скупка/продажа).
-    
+
     Оптимизация: один проход по данным, предварительная фильтрация серверов,
     кэширование search_lower для производительности.
-    
+
     Args:
         users_data: Данные пользователей из API
         search_term: Поисковый запрос
@@ -139,7 +144,7 @@ def _parse_offers_split(
         sort_order: Сортировка (asc, desc, none)
         limit: Лимит результатов
         offset: Смещение
-    
+
     Returns:
         Dict с buy_offers, sell_offers и метаданными пагинации
     """
@@ -154,10 +159,19 @@ def _parse_offers_split(
     )
 
     for user_data in filtered_users:
+        # Корректная обработка LavkaUid - пропускаем пользователей без лавки
+        lavka_uid_raw = user_data.get("LavkaUid")
+        if lavka_uid_raw is None or lavka_uid_raw == 0:
+            continue
+        lavka_uid = str(lavka_uid_raw)
+
         username = user_data.get("username") or "Unknown"
-        lavka_uid = str(user_data.get("LavkaUid", ""))
         user_status = bool(user_data.get("userStatus", 0))
         user_server = user_data.get("serverId")
+
+        # Логирование для отладки (только первый пользователь)
+        if len(sell_offers) == 0 and len(buy_offers) == 0:
+            logger.debug(f"User: {username}, LavkaUid: {lavka_uid}, Server: {user_server}")
 
         # Предметы на продажу (SELL - игрок продает)
         items_sell = user_data.get("items_sell") or []
@@ -365,11 +379,13 @@ async def get_lavkas(
 @router.get("/lavkas/{lavka_uid}")
 async def get_lavka_detail(
     lavka_uid: str,
+    server_id: Optional[int] = Query(default=None, ge=0, le=32, description="ID сервера для точного поиска"),
     lavka_service: LavkaService = Depends(get_lavka_service),
 ):
     """Получить детальную информацию о лавке."""
     try:
-        lavka = await lavka_service.get_lavka_detail(lavka_uid)
+        # Передаём server_id в сервис для точного поиска
+        lavka = await lavka_service.get_lavka_detail(lavka_uid, server_id)
 
         if lavka is None:
             raise HTTPException(status_code=404, detail="Лавка не найдена")

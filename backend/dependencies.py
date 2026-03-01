@@ -1,8 +1,12 @@
 """
-Dependency Injection для Arizona Lavka Marketplace.
+Arizona Lavka Marketplace - Dependencies.
 
-© 2026 Arizona Lavka Marketplace. Все права защищены.
-Лицензия: Proprietary
+© 2026 Arizona Lavka Marketplace. All Rights Reserved.
+License: Proprietary Commercial License
+
+Note:
+    Этот файл существует для обратной совместимости.
+    Новый код должен использовать DI из application/services напрямую.
 """
 
 from functools import lru_cache
@@ -18,6 +22,27 @@ from services.marketplace_service import MarketplaceService
 from services.historical_data_service import HistoricalDataService
 from services.config_generator_service import ConfigGeneratorService
 from services.lavka_service import LavkaService
+
+# =============================================================================
+# New Architecture Dependencies (Clean Architecture)
+# =============================================================================
+
+from infrastructure.database.repositories import (
+    UserRepository,
+    ConfigHistoryRepository,
+    FavoriteItemRepository,
+    PriceAlertRepository,
+    AuditLogRepository,
+    AdminLogRepository,
+    GlobalSettingRepository,
+)
+from infrastructure.external.marketplace_api import MarketplaceAPI
+from application.services import (
+    AuthAppService,
+    MarketplaceAppService,
+    UserAppService,
+)
+from services.config_generator_service import ConfigGeneratorService
 
 
 # =============================================================================
@@ -68,6 +93,10 @@ async def get_db_session(
     """
     Зависимость для получения сессии базы данных.
 
+    Note:
+        Использует get_session() с автоматическим коммитом при успешном завершении.
+        Для операций без коммита используйте get_db_session_no_commit().
+
     Args:
         db_manager: Менеджер базы данных
 
@@ -78,43 +107,70 @@ async def get_db_session(
         yield session
 
 
+async def get_db_session_no_commit(
+    db_manager: DatabaseManager = Depends(get_db_manager)
+) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Зависимость для получения сессии базы данных без автоматического коммита.
+
+    Note:
+        Используйте для операций чтения или когда коммит управляется вручную.
+        При использовании этой зависимости вы должны явно вызывать commit().
+
+    Args:
+        db_manager: Менеджер базы данных
+
+    Yields:
+        AsyncSession: Сессия базы данных
+    """
+    async with db_manager.get_session_no_commit() as session:
+        yield session
+
+
 # =============================================================================
 # Service Dependencies (с кэшированием для производительности)
 # =============================================================================
 
-# Кэш для сервисов на время запроса
-_service_cache: dict = {}
+# Кэш для сервисов на время запроса (request-scoped)
+# Использует request.state для хранения сервисов в рамках одного запроса
+# Это предотвращает race condition при параллельных запросах
 
 
 async def get_marketplace_service(
+    request: Request,
     settings: Settings = Depends(get_settings)
 ) -> AsyncGenerator[MarketplaceService, None]:
     """
     Создаёт экземпляр MarketplaceService.
-    
+
     Note:
-        Сервис создаётся один раз на время жизни запроса благодаря кэшированию.
-        Это предотвращает множественные создания объектов при цепочке зависимостей.
+        Сервис создаётся один раз на время жизни запроса благодаря кэшированию
+        через request.state. Это предотвращает race condition при параллельных
+        запросах и множественные создания объектов при цепочке зависимостей.
 
     Args:
+        request: HTTP запрос (для request.state кэша)
         settings: Настройки приложения
 
     Yields:
         MarketplaceService: Сервис marketplace
     """
-    # Проверяем кэш
-    if 'marketplace' in _service_cache:
-        yield _service_cache['marketplace']
+    # Проверяем кэш в request.state (request-scoped кэш)
+    if not hasattr(request.state, 'services'):
+        request.state.services = {}
+
+    if 'marketplace' in request.state.services:
+        yield request.state.services['marketplace']
         return
-    
+
     service = MarketplaceService(settings)
-    _service_cache['marketplace'] = service
-    
+    request.state.services['marketplace'] = service
+
     try:
         yield service
     finally:
         await service.close()
-        _service_cache.pop('marketplace', None)
+        request.state.services.pop('marketplace', None)
 
 
 async def get_historical_data_service(
@@ -122,9 +178,10 @@ async def get_historical_data_service(
 ) -> AsyncGenerator[HistoricalDataService, None]:
     """
     Создаёт экземпляр HistoricalDataService.
-    
+
     Note:
         Сервис не требует закрытия ресурсов, используется singleton на запрос.
+        Не требует request.state так как не имеет состояния.
 
     Args:
         settings: Настройки приложения
@@ -132,53 +189,45 @@ async def get_historical_data_service(
     Yields:
         HistoricalDataService: Сервис исторических данных
     """
-    if 'historical' in _service_cache:
-        yield _service_cache['historical']
-        return
-    
-    service = HistoricalDataService(settings)
-    _service_cache['historical'] = service
-    yield service
+    yield HistoricalDataService(settings)
 
 
 async def get_lavka_service(
+    request: Request,
     marketplace_service: MarketplaceService = Depends(get_marketplace_service),
     settings: Settings = Depends(get_settings)
 ) -> AsyncGenerator[LavkaService, None]:
     """
     Создаёт экземпляр LavkaService.
-    
+
     Note:
-        Использует кэшированный marketplace_service из текущего запроса.
+        Использует кэшированный marketplace_service из request.state.
+        Это критично для предотвращения race condition.
 
     Args:
+        request: HTTP запрос
         marketplace_service: Сервис marketplace
         settings: Настройки приложения
 
     Yields:
         LavkaService: Сервис лавок
     """
-    if 'lavka' in _service_cache:
-        yield _service_cache['lavka']
-        return
-    
-    service = LavkaService(marketplace_service, settings)
-    _service_cache['lavka'] = service
-    yield service
+    yield LavkaService(marketplace_service, settings)
 
 
 async def get_config_generator_service(
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session_no_commit),
     marketplace_service: MarketplaceService = Depends(get_marketplace_service),
     historical_data_service: HistoricalDataService = Depends(get_historical_data_service),
     settings: Settings = Depends(get_settings)
 ) -> AsyncGenerator[ConfigGeneratorService, None]:
     """
     Создаёт экземпляр ConfigGeneratorService.
-    
+
     Note:
-        Использует кэшированные зависимости из текущего запроса.
-        Это критично для производительности при генерации конфигов.
+        Использует сессию без автоматического коммита (get_db_session_no_commit).
+        Коммит управляется вручную в роутах при сохранении конфигов в историю.
+        Использует кэшированные зависимости из request.state.
 
     Args:
         session: Сессия базы данных
@@ -189,15 +238,9 @@ async def get_config_generator_service(
     Yields:
         ConfigGeneratorService: Сервис генерации конфигов
     """
-    if 'config_generator' in _service_cache:
-        yield _service_cache['config_generator']
-        return
-    
-    service = ConfigGeneratorService(
+    yield ConfigGeneratorService(
         session, marketplace_service, historical_data_service, settings
     )
-    _service_cache['config_generator'] = service
-    yield service
 
 
 # =============================================================================
@@ -246,3 +289,128 @@ async def get_current_user_required(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+async def get_current_admin(
+    user: "User" = Depends(get_current_user_required)
+) -> "User":
+    """
+    Требует чтобы пользователь был администратором.
+
+    Args:
+        user: Объект пользователя (обязательно авторизованный)
+
+    Returns:
+        User: Объект пользователя с ролью admin
+
+    Raises:
+        HTTPException: Если пользователь не администратор
+    """
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ запрещён. Требуются права администратора.",
+        )
+    return user
+
+
+# =============================================================================
+# New Architecture Dependencies (Clean Architecture)
+# =============================================================================
+
+async def get_user_repository(
+    session: AsyncSession = Depends(get_db_session_no_commit)
+) -> AsyncGenerator[UserRepository, None]:
+    """Создаёт UserRepository."""
+    yield UserRepository(session)
+
+
+async def get_config_history_repository(
+    session: AsyncSession = Depends(get_db_session_no_commit)
+) -> AsyncGenerator[ConfigHistoryRepository, None]:
+    """Создаёт ConfigHistoryRepository."""
+    yield ConfigHistoryRepository(session)
+
+
+async def get_favorite_item_repository(
+    session: AsyncSession = Depends(get_db_session_no_commit)
+) -> AsyncGenerator[FavoriteItemRepository, None]:
+    """Создаёт FavoriteItemRepository."""
+    yield FavoriteItemRepository(session)
+
+
+async def get_price_alert_repository(
+    session: AsyncSession = Depends(get_db_session_no_commit)
+) -> AsyncGenerator[PriceAlertRepository, None]:
+    """Создаёт PriceAlertRepository."""
+    yield PriceAlertRepository(session)
+
+
+async def get_audit_log_repository(
+    session: AsyncSession = Depends(get_db_session_no_commit)
+) -> AsyncGenerator[AuditLogRepository, None]:
+    """Создаёт AuditLogRepository."""
+    yield AuditLogRepository(session)
+
+
+async def get_admin_log_repository(
+    session: AsyncSession = Depends(get_db_session_no_commit)
+) -> AsyncGenerator[AdminLogRepository, None]:
+    """Создаёт AdminLogRepository."""
+    yield AdminLogRepository(session)
+
+
+async def get_global_setting_repository(
+    session: AsyncSession = Depends(get_db_session_no_commit)
+) -> AsyncGenerator[GlobalSettingRepository, None]:
+    """Создаёт GlobalSettingRepository."""
+    yield GlobalSettingRepository(session)
+
+
+async def get_marketplace_api(
+    settings: Settings = Depends(get_settings)
+) -> AsyncGenerator[MarketplaceAPI, None]:
+    """Создаёт MarketplaceAPI."""
+    api = MarketplaceAPI(settings)
+    try:
+        yield api
+    finally:
+        await api.close()
+
+
+async def get_auth_app_service(
+    user_repository: UserRepository = Depends(get_user_repository),
+    settings: Settings = Depends(get_settings)
+) -> AsyncGenerator[AuthAppService, None]:
+    """Создаёт AuthAppService."""
+    yield AuthAppService(
+        user_repository=user_repository,
+        jwt_secret_key=settings.JWT_SECRET_KEY,
+        jwt_algorithm=settings.JWT_ALGORITHM,
+        access_token_expire_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        refresh_token_expire_days=settings.REFRESH_TOKEN_EXPIRE_DAYS,
+        max_login_attempts=settings.MAX_LOGIN_ATTEMPTS,
+        lockout_duration_minutes=settings.LOCKOUT_DURATION_MINUTES,
+    )
+
+
+async def get_marketplace_app_service(
+    marketplace_api: MarketplaceAPI = Depends(get_marketplace_api)
+) -> AsyncGenerator[MarketplaceAppService, None]:
+    """Создаёт MarketplaceAppService."""
+    yield MarketplaceAppService(marketplace_api=marketplace_api)
+
+
+async def get_user_app_service(
+    user_repository: UserRepository = Depends(get_user_repository),
+    config_history_repository: ConfigHistoryRepository = Depends(get_config_history_repository),
+    favorite_item_repository: FavoriteItemRepository = Depends(get_favorite_item_repository),
+    price_alert_repository: PriceAlertRepository = Depends(get_price_alert_repository),
+) -> AsyncGenerator[UserAppService, None]:
+    """Создаёт UserAppService."""
+    yield UserAppService(
+        user_repository=user_repository,
+        config_history_repository=config_history_repository,
+        favorite_item_repository=favorite_item_repository,
+        price_alert_repository=price_alert_repository,
+    )

@@ -1,175 +1,242 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import apiClient from '../api/marketplace';
-import { Button } from '../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { EmptyState } from '../components/states/EmptyState';
-import { ErrorState } from '../components/states/ErrorState';
-import { Store, Users, ArrowLeft, ShoppingCart, Tag } from 'lucide-react';
-import { LavkaModal } from '../components/LavkaModal';
+'use client';
 
-interface Lavka {
-  lavkaUid: string;
-  username: string;
-  serverId: number;
-  sellCount: number;
-  buyCount: number;
-  totalItems: number;
-}
+import { Link, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Store,
+  TrendingUp,
+  TrendingDown,
+  Server as ServerIcon,
+  Search,
+} from 'lucide-react';
+import { marketplaceApi } from '@/shared/api';
+import { SERVERS } from '@/shared/lib/constants';
+import {
+  Card,
+  CardContent,
+  Input,
+  Select,
+  Badge,
+  SkeletonCard,
+  EmptyState,
+  ErrorState,
+} from '@/shared/ui';
 
 export function LavkaListPage() {
-  const { serverId } = useParams<{ serverId: string }>();
-  const navigate = useNavigate();
-  const [lavkas, setLavkas] = useState<Lavka[]>([]);
-  const [serverName, setServerName] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedLavka, setSelectedLavka] = useState<Lavka | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedServer = searchParams.get('server') || '';
+  const searchQuery = searchParams.get('q') || '';
 
-  const loadLavkas = useCallback(async () => {
-    if (!serverId) {
-      navigate('/');
-      return;
-    }
+  const { data: lavkasResponse, isLoading, error } = useQuery({
+    queryKey: ['lavkas', selectedServer],
+    queryFn: async () => {
+      if (!selectedServer) return null;
+      return marketplaceApi.getLavkas(parseInt(selectedServer));
+    },
+    enabled: !!selectedServer,
+    staleTime: 1000 * 60 * 5,
+  });
 
-    setIsLoading(true);
-    setError(null);
+  const lavkas = lavkasResponse?.lavkas || [];
 
-    try {
-      const response = await apiClient.get<{
-        lavkas: Lavka[];
-        total: number;
-        serverName: string;
-      }>(`/marketplace/lavkas?server_id=${serverId}`);
+  const filteredLavkas = lavkas.filter((lavka) =>
+    lavka.username.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-      setLavkas(response.data.lavkas);
-      setServerName(response.data.serverName);
-    } catch (err) {
-      setError('Ошибка загрузки списка лавок');
-      console.error('Error loading lavkas:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [serverId, navigate]);
-
-  useEffect(() => {
-    loadLavkas();
-  }, [loadLavkas]);
-
-  const handleOpenLavka = (lavka: Lavka) => {
-    setSelectedLavka(lavka);
-    setIsModalOpen(true);
+  const getServerName = (id: number) => {
+    const server = SERVERS.find((s) => s.id === id);
+    return server?.name || 'Неизвестно';
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedLavka(null);
-  };
-
-  if (isLoading) {
+  if (error) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+        <ErrorState
+          title="Ошибка загрузки"
+          description="Не удалось загрузить список лавок"
+          onRetry={() => window.location.reload()}
+        />
       </div>
     );
   }
 
-  if (error) {
-    return <ErrorState title="Ошибка" description={error} onRetry={loadLavkas} />;
-  }
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Заголовок */}
-      <div className="mb-8">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center text-gray-400 hover:text-white mb-4 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Назад
-        </button>
-        <h1 className="text-3xl font-bold text-white mb-2">
-          Лавки сервера {serverName}
-        </h1>
-        <p className="text-gray-400">
-          Найдено лавок: <span className="text-white font-medium">{lavkas.length}</span>
-        </p>
-      </div>
+    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex items-center space-x-4 mb-4">
+          <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+            <Store className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Лавки серверов</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Все активные торговые точки
+            </p>
+          </div>
+        </div>
+      </motion.div>
 
-      {/* Список лавок */}
-      {lavkas.length === 0 ? (
-        <EmptyState
-          title="Нет лавок"
-          description="На этом сервере пока нет активных лавок"
-          icon={<Store className="h-12 w-12 text-gray-500" />}
-        />
-      ) : (
+      {/* Filters */}
+      <Card className="mb-8">
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="Сервер"
+              value={selectedServer}
+              onChange={(e) => {
+                const newParams = new URLSearchParams(searchParams);
+                if (e.target.value) {
+                  newParams.set('server', e.target.value);
+                } else {
+                  newParams.delete('server');
+                }
+                setSearchParams(newParams);
+              }}
+              icon={<ServerIcon className="h-4 w-4" />}
+            >
+              <option value="">Все серверы</option>
+              {SERVERS.map((server) => (
+                <option key={server.id} value={server.id}>
+                  {server.name}
+                </option>
+              ))}
+            </Select>
+
+            <Input
+              label="Поиск по продавцу"
+              placeholder="Никнейм продавца..."
+              value={searchQuery}
+              onChange={(e) => {
+                const newParams = new URLSearchParams(searchParams);
+                if (e.target.value) {
+                  newParams.set('q', e.target.value);
+                } else {
+                  newParams.delete('q');
+                }
+                setSearchParams(newParams);
+              }}
+              icon={<Search className="h-5 w-5" />}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Content */}
+      {!selectedServer ? (
+        <Card>
+          <CardContent>
+            <EmptyState
+              title="Выберите сервер"
+              description="Выберите сервер из списка выше, чтобы увидеть лавки"
+              icon={<ServerIcon className="h-16 w-16" />}
+            />
+          </CardContent>
+        </Card>
+      ) : isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {lavkas.map((lavka) => (
-            <Card key={lavka.lavkaUid} hoverable className="transition-all hover:shadow-lg">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-12 w-12 bg-primary-600/20 rounded-lg flex items-center justify-center">
-                      <Store className="h-6 w-6 text-primary-500" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-white text-lg">{lavka.username}</CardTitle>
-                      <p className="text-sm text-gray-400">ID: {lavka.lavkaUid}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="text-center p-3 bg-blue-600/10 rounded-lg">
-                    <div className="flex items-center justify-center mb-1">
-                      <ShoppingCart className="h-4 w-4 text-blue-500 mr-1" />
-                      <span className="text-xs text-blue-400">Скупка</span>
-                    </div>
-                    <p className="text-xl font-bold text-blue-500">{lavka.buyCount}</p>
-                  </div>
-                  <div className="text-center p-3 bg-green-600/10 rounded-lg">
-                    <div className="flex items-center justify-center mb-1">
-                      <Tag className="h-4 w-4 text-green-500 mr-1" />
-                      <span className="text-xs text-green-400">Продажа</span>
-                    </div>
-                    <p className="text-xl font-bold text-green-500">{lavka.sellCount}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-sm text-gray-400 mb-4">
-                  <div className="flex items-center">
-                    <Users className="h-4 w-4 mr-1" />
-                    <span>Всего: {lavka.totalItems}</span>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={() => handleOpenLavka(lavka)}
-                  variant="primary"
-                  className="w-full"
-                >
-                  <Store className="h-4 w-4 mr-2" />
-                  Открыть лавку
-                </Button>
-              </CardContent>
-            </Card>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
           ))}
         </div>
-      )}
+      ) : filteredLavkas && filteredLavkas.length === 0 ? (
+        <Card>
+          <CardContent>
+            <EmptyState
+              title="Лавки не найдены"
+              description={
+                searchQuery
+                  ? `Нет лавок с продавцом "${searchQuery}"`
+                  : 'На этом сервере пока нет активных лавок'
+              }
+              icon={<Store className="h-16 w-16" />}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <div>
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-foreground flex items-center space-x-3">
+                <Store className="h-6 w-6 text-blue-500" />
+                <span>
+                  {selectedServer ? getServerName(parseInt(selectedServer)) : 'Все серверы'}
+                </span>
+              </h2>
+              <p className="text-muted-foreground mt-1">
+                Найдено лавок:{' '}
+                <span className="text-blue-500 font-semibold">
+                  {filteredLavkas.length || 0}
+                </span>
+              </p>
+            </div>
+          </div>
 
-      {/* Модальное окно лавки */}
-      {selectedLavka && (
-        <LavkaModal
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          lavkaUid={selectedLavka.lavkaUid}
-          username={selectedLavka.username}
-          serverId={selectedLavka.serverId}
-        />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredLavkas.map((lavka, index) => (
+              <motion.div
+                key={lavka.lavkaUid}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+              >
+                <Card hoverable>
+                  <CardContent>
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-base font-semibold text-foreground">
+                          {lavka.username}
+                        </h3>
+                        <Badge variant="neutral">#{lavka.lavkaUid.slice(0, 8)}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">ID: {lavka.lavkaUid}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Сервер: {getServerName(lavka.serverId)}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="text-center p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                        <div className="text-xl font-bold text-blue-500">{lavka.buyCount}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <TrendingUp className="h-3 w-3 inline mr-1" />
+                          Скупка
+                        </div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                        <div className="text-xl font-bold text-green-500">{lavka.sellCount}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <TrendingDown className="h-3 w-3 inline mr-1" />
+                          Продажа
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-muted-foreground mb-4 flex items-center justify-between">
+                      <span>Всего предметов:</span>
+                      <span className="text-foreground font-semibold">{lavka.totalItems}</span>
+                    </div>
+
+                    <Link
+                      to={`/lavka/${lavka.lavkaUid}?server_id=${selectedServer}`}
+                      className="block bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-center py-2.5 rounded-lg font-semibold transition-all"
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <Store className="h-4 w-4" />
+                        <span>Открыть лавку</span>
+                      </div>
+                    </Link>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

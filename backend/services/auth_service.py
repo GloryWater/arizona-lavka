@@ -5,7 +5,9 @@
 Лицензия: Proprietary
 """
 
-from datetime import datetime, timedelta
+import asyncio
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 import bcrypt
@@ -14,6 +16,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import Settings
+from database import User
+
+
+def _utcnow() -> datetime:
+    """Возвращает текущее UTC время (timezone-aware)."""
+    return datetime.now(timezone.utc)
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -79,7 +89,8 @@ class TokenManager:
         data: dict,
         expires_delta: Optional[timedelta] = None,
         secret_key: str = None,
-        algorithm: str = "HS256"
+        algorithm: str = "HS256",
+        user_role: str = "user"
     ) -> str:
         """
         Создаёт access токен.
@@ -89,10 +100,11 @@ class TokenManager:
             expires_delta: Время жизни токена
             secret_key: Секретный ключ
             algorithm: Алгоритм шифрования
+            user_role: Роль пользователя (для включения в токен)
 
         Returns:
             str: JWT токен
-            
+
         Note:
             Использует timezone-aware datetime для совместимости с PostgreSQL.
             Для PostgreSQL TIMESTAMP WITHOUT TIME ZONE используется naive datetime
@@ -101,14 +113,15 @@ class TokenManager:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = _utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=30)
+            expire = _utcnow() + timedelta(minutes=30)
 
         to_encode.update({
             "exp": expire,
-            "iat": datetime.utcnow(),
-            "type": "access"
+            "iat": _utcnow(),
+            "type": "access",
+            "role": user_role
         })
 
         return jwt.encode(to_encode, secret_key, algorithm=algorithm)
@@ -135,13 +148,13 @@ class TokenManager:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = _utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(days=7)
+            expire = _utcnow() + timedelta(days=7)
 
         to_encode.update({
             "exp": expire,
-            "iat": datetime.utcnow(),
+            "iat": _utcnow(),
             "type": "refresh"
         })
 
@@ -216,7 +229,7 @@ class AuthService:
 
         # Проверка блокировки
         # Для PostgreSQL используем naive datetime (без timezone)
-        if user.locked_until and user.locked_until > datetime.utcnow():
+        if user.locked_until and user.locked_until.replace(tzinfo=timezone.utc) > _utcnow():
             return None
 
         # Проверка пароля
@@ -260,7 +273,7 @@ class AuthService:
         )
 
         self.session.add(user)
-        await self.session.commit()
+        await self.session.flush()  # Get the user ID without committing
         await self.session.refresh(user)
 
         return user
@@ -277,9 +290,15 @@ class AuthService:
 
         Returns:
             User: Объект пользователя
+
+        Note:
+            Для Telegram-пользователей не используется парольная аутентификация.
+            Поле hashed_password заполняется случайным значением для соответствия схеме БД.
+            Аутентификация происходит только через Telegram init_data валидацию.
         """
         from database import User
         from sqlalchemy import select
+        import secrets
 
         telegram_id = str(telegram_user.get("id"))
 
@@ -307,12 +326,16 @@ class AuthService:
             select(User).where(User.username == username)
         )
         if result.scalar_one_or_none():
-            username = f"tg_{telegram_id}_{int(datetime.utcnow().timestamp())}"
+            username = f"tg_{telegram_id}_{int(_utcnow().timestamp())}"
+
+        # Генерируем случайный пароль вместо детерминированного
+        # Он никогда не используется для входа, только для соответствия схеме БД
+        random_password = secrets.token_urlsafe(32)
 
         user = User(
             username=username,
             email=f"{telegram_id}@telegram.local",
-            hashed_password=PasswordHandler.hash(f"telegram_{telegram_id}"),
+            hashed_password=PasswordHandler.hash(random_password),
             first_name=telegram_first_name,
             last_name=telegram_last_name,
             telegram_id=telegram_id,
@@ -346,6 +369,7 @@ class AuthService:
             expires_delta=timedelta(minutes=self.settings.ACCESS_TOKEN_EXPIRE_MINUTES),
             secret_key=self.settings.JWT_SECRET_KEY,
             algorithm=self.settings.JWT_ALGORITHM,
+            user_role=user.role,
         )
 
         refresh_token = TokenManager.create_refresh_token(
@@ -354,6 +378,15 @@ class AuthService:
             secret_key=self.settings.JWT_SECRET_KEY,
             algorithm=self.settings.JWT_ALGORITHM,
         )
+
+        # Сохраняем refresh токен в БД атомарно
+        user.refresh_token = refresh_token
+
+        # Обновляем last_active_at (наивный datetime для PostgreSQL TIMESTAMP WITHOUT TIME ZONE)
+        user.last_active_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        # Один commit() для обеих операций
+        await self.session.commit()
 
         return {
             "access_token": access_token,
@@ -364,6 +397,10 @@ class AuthService:
     def create_token_pair(self, user: "User") -> dict:
         """
         Создаёт пару токенов (access + refresh).
+
+        Note:
+            Синхронная версия для использования в синхронных контекстах.
+            Для асинхронных операций используйте generate_token_pair().
 
         Args:
             user: Объект пользователя
@@ -378,6 +415,7 @@ class AuthService:
             expires_delta=timedelta(minutes=self.settings.ACCESS_TOKEN_EXPIRE_MINUTES),
             secret_key=self.settings.JWT_SECRET_KEY,
             algorithm=self.settings.JWT_ALGORITHM,
+            user_role=user.role,
         )
 
         refresh_token = TokenManager.create_refresh_token(
@@ -479,7 +517,7 @@ class AuthService:
 
         if user.login_attempts >= self.settings.MAX_LOGIN_ATTEMPTS:
             # Для PostgreSQL используем naive datetime (без timezone)
-            user.locked_until = datetime.utcnow() + timedelta(
+            user.locked_until = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
                 minutes=self.settings.LOCKOUT_DURATION_MINUTES
             )
 
@@ -494,7 +532,6 @@ class AuthService:
 
 # Импортируем здесь чтобы избежать circular imports
 from fastapi import Request
-from database import User
 
 
 async def get_current_user_from_request(
@@ -534,4 +571,11 @@ async def get_current_user_from_request(
         return None
 
     user = await session.get(User, int(user_id))
+
+    # Обновляем last_active_at без коммита всей сессии
+    # Используем flush() чтобы обновить только это изменение
+    if user:
+        user.last_active_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        await session.flush()
+
     return user

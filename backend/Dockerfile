@@ -8,14 +8,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Установка Python зависимостей
+# Обновление pip для лучшей поддержки binary wheels
+RUN pip install --no-cache-dir --upgrade pip
+
+# Копирование и установка зависимостей
+# Большинство пакетов имеют готовые wheels для Linux x86_64
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копирование кода
+# Копирование кода приложения
 COPY . .
 
-# Создание директорий
+# Создание директорий для логов и данных
 RUN mkdir -p logs data
 
 # Экспорт порта

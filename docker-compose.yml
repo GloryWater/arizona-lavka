@@ -1,16 +1,14 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     container_name: arizonalavka-postgres
     environment:
       POSTGRES_USER: arizonalavka
       POSTGRES_PASSWORD: arizonalavka_password
       POSTGRES_DB: arizonalavka
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:7432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -27,6 +25,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      cache_from:
+        - python:3.12-slim
     container_name: arizonalavka-backend
     ports:
       - "127.0.0.1:8000:8000"
@@ -36,8 +36,8 @@ services:
       POSTGRES_DB: arizonalavka
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      JWT_SECRET_KEY: super_secret_jwt_key_min_32_characters_long_for_security
-      DEBUG: "false"
+      JWT_SECRET_KEY: bXxFxpmtJIZXXatkIjBEaDhLyrqziVTYfafds
+      DEBUG: "true"
       CORS_ORIGINS: https://lavka.glorysyntax.live,http://lavka.glorysyntax.live
     volumes:
       - ./data:/data:ro
@@ -53,6 +53,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      cache_from:
+        - node:20-alpine
+        - nginx:alpine
     container_name: arizonalavka-frontend
     ports:
       - "127.0.0.1:8080:80"

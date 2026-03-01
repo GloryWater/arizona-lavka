@@ -88,30 +88,32 @@ class Settings(BaseSettings):
     def validate_jwt_secret(cls, v: Optional[str]) -> str:
         """
         Валидация и генерация JWT секрета.
-        
+
         В production обязательно установите JWT_SECRET_KEY в .env файле!
         Генерация временного ключа только для разработки.
-        
+
         Args:
             v: Значение секрета из переменных окружения
-            
+
         Returns:
             str: Валидный JWT секрет
-            
+
         Raises:
             ValueError: Если секрет короче 32 символов
         """
         if v is None or v == "":
             # Генерируем временный ключ только для разработки
             # В production это приведёт к инвалидации токенов при рестарте
+            # Для безопасности генерируем ключ и логируем предупреждение
+            temp_key = secrets.token_urlsafe(32)
             warnings.warn(
                 "JWT_SECRET_KEY не задан! Сгенерирован временный ключ. "
                 "В production обязательно установите JWT_SECRET_KEY в .env файле! "
-                "Минимальная длина: 32 символа.",
+                "Все токены будут инвалидированы при перезапуске сервера.",
                 UserWarning,
                 stacklevel=2
             )
-            return secrets.token_urlsafe(32)
+            return temp_key
 
         if len(v) < 32:
             raise ValueError(
@@ -135,12 +137,20 @@ class Settings(BaseSettings):
     EXTERNAL_API_URL: str = "https://api.arz.market/api/getSelectedMarketplace/-1"
     API_TIMEOUT_SECONDS: int = 30
 
+    # Telegram Bot Token (для Telegram WebApp аутентификации)
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+
     # Cache
     CACHE_TTL_SECONDS: int = 30
     CACHE_MAX_SIZE: int = 100
 
     # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = 60
+    # Увеличено до 120 для обработки сценариев с refresh токенами
+    RATE_LIMIT_PER_MINUTE: int = 120
+
+    # Load Testing - IP адреса для whitelist (без лимитов)
+    # Формат: "127.0.0.1,192.168.1.100" или пусто для отключения
+    LOAD_TESTING_IPS: str = "172.18.0.1,127.0.0.1,localhost"
 
     # Security
     MIN_PASSWORD_LENGTH: int = 8

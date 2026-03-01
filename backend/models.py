@@ -1,11 +1,12 @@
 """
-Pydantic модели для валидации данных API.
+Arizona Lavka Marketplace - Pydantic Models.
 
-© 2026 Arizona Lavka Marketplace. Все права защищены.
-Лицензия: Proprietary
+© 2026 Arizona Lavka Marketplace. All Rights Reserved.
+License: Proprietary Commercial License
 """
 
-from pydantic import BaseModel, Field, ConfigDict
+import re
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Literal
 from enum import Enum
 from datetime import datetime
@@ -205,6 +206,26 @@ class UserRegister(BaseModel):
     first_name: Optional[str] = Field(None, max_length=100)
     last_name: Optional[str] = Field(None, max_length=100)
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        """
+        Валидация email по RFC 5322 (упрощённая).
+
+        Args:
+            v: Email для валидации
+
+        Returns:
+            str: Валидный email
+
+        Raises:
+            ValueError: Если email невалиден
+        """
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(email_pattern, v):
+            raise ValueError("Некорректный формат email адреса")
+        return v
+
 
 class UserLogin(BaseModel):
     """Вход пользователя."""
@@ -233,6 +254,8 @@ class UserResponse(BaseModel):
     last_name: Optional[str] = None
     is_premium: bool = False
     is_telegram_user: bool = False
+    role: str = "user"
+    last_active_at: Optional[datetime] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -294,3 +317,83 @@ class PriceAlertResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# =============================================================================
+# Admin Models
+# =============================================================================
+
+class AdminUserResponse(BaseModel):
+    """Информация о пользователе для админки."""
+    id: int
+    username: str
+    email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    is_premium: bool = False
+    role: str = "user"
+    last_active_at: Optional[datetime] = None
+    created_at: datetime
+    configs_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminLogResponse(BaseModel):
+    """Лог админ-панели."""
+    id: int
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    event_type: str
+    details: Optional[dict] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditLogResponse(BaseModel):
+    """Лог аудита действий пользователей."""
+    id: int
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    action: str
+    resource: Optional[str] = None
+    resource_id: Optional[int] = None
+    ip_address: Optional[str] = None
+    details: Optional[str] = None
+    status: str
+    error_message: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminStatsSummary(BaseModel):
+    """Сводная статистика."""
+    total_users: int
+    total_configs: int
+    dau: int  # Активные за сегодня
+    mau: int  # Активные за 30 дней
+    avg_configs_per_user_per_day: float  # Среднее конфигов на пользователя в день
+
+
+class AdminStatsChartData(BaseModel):
+    """Данные для графика."""
+    date: str
+    registrations: int
+    configs_generated: int
+
+
+class GlobalSettingResponse(BaseModel):
+    """Настройка."""
+    key: str
+    value: dict
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GlobalSettingUpdate(BaseModel):
+    """Обновление настройки."""
+    value: dict

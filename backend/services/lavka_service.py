@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 
 from config import Settings
 from models import LavkaSummary, LavkaItem, LavkaDetail, OfferType
-from services.marketplace_service import MarketplaceService
+from services.marketplace_service import MarketplaceService, _sanitize_item_name
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,9 @@ class LavkaService:
 
         Returns:
             Словарь mapping предметов ID -> название
+
+        Raises:
+            RuntimeError: Если файл items.json не найден после нескольких попыток
         """
         if cls._items_loaded:
             logger.debug(f"Mapping уже загружен: {len(cls._items_mapping)} предметов")
@@ -61,38 +64,43 @@ class LavkaService:
 
         logger.info(f"Загрузка mapping предметов из {ITEMS_FILE}")
         logger.info(f"ITEMS_FILE exists: {ITEMS_FILE.exists()}, absolute: {ITEMS_FILE.absolute()}")
-        
+
+        # Проверка существования файла перед загрузкой
+        if not ITEMS_FILE.exists():
+            logger.error(f"Критическая ошибка: файл items.json не найден по пути {ITEMS_FILE}")
+            logger.error("Убедитесь, что файл items.json находится в папке backend/")
+            # Возвращаем пустой mapping с флагом загрузки чтобы не пытаться снова
+            cls._items_loaded = True
+            return {}
+
         try:
             with open(ITEMS_FILE, "r", encoding="utf-8") as f:
                 cls._items_mapping = json.load(f)
             cls._items_loaded = True
             logger.info(f"Загружено {len(cls._items_mapping)} предметов в mapping")
             return cls._items_mapping
-        except FileNotFoundError:
-            logger.error(f"Файл {ITEMS_FILE} не найден")
-            cls._items_mapping = {}
-            cls._items_loaded = False
-            return {}
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка парсинга JSON: {e}")
             cls._items_mapping = {}
-            cls._items_loaded = False
+            cls._items_loaded = True  # Помечаем как загружено чтобы не пытаться снова
             return {}
     
     @classmethod
     def get_item_name(cls, item_id: int) -> str:
         """
         Получает название предмета по ID.
-        
+
         Args:
             item_id: ID предмета
-        
+
         Returns:
-            Название предмета или fallback строку
+            Название предмета или fallback строку (санитизированные)
         """
         if not cls._items_loaded:
             cls.load_items_mapping()
-        return cls._items_mapping.get(str(item_id), f"Unknown Item (ID: {item_id})")
+        name = cls._items_mapping.get(str(item_id), f"Unknown Item (ID: {item_id})")
+        # Санитизация для защиты от XSS
+        return _sanitize_item_name(name)
     
     @staticmethod
     def parse_item_id(item_value) -> Optional[int]:
@@ -202,90 +210,141 @@ class LavkaService:
         
         return lavkas_list
     
-    async def get_lavka_detail(self, lavka_uid: str) -> Optional[LavkaDetail]:
+    async def get_lavka_detail(self, lavka_uid: str, server_id: Optional[int] = None) -> Optional[LavkaDetail]:
         """
         Получает детальную информацию о лавке.
-        
+
         Args:
             lavka_uid: Уникальный идентификатор лавки
-        
+            server_id: ID сервера для точного поиска (опционально)
+
         Returns:
             Детальная информация о лавке или None если не найдена
         """
         users_data = await self.marketplace_service.fetch_data()
-        logger.info(f"Поиск лавки {lavka_uid}")
-        
+        logger.info(f"Поиск лавки по UID: {lavka_uid}" + (f" на сервере: {server_id}" if server_id else ""))
+
+        # Собираем все найденные лавки с таким UID
+        found_users = []
         for user_data in users_data:
             # Корректная обработка LavkaUid
             user_lavka_uid_raw = user_data.get("LavkaUid")
             if user_lavka_uid_raw is None or user_lavka_uid_raw == 0:
                 continue
-            
+
             user_lavka_uid = str(user_lavka_uid_raw)
-            
+
+            if user_lavka_uid == lavka_uid:
+                found_users.append({
+                    "username": user_data.get("username"),
+                    "serverId": user_data.get("serverId"),
+                    "lavkaUid": user_lavka_uid,
+                })
+
+        # Логирование если найдено несколько лавок с одинаковым UID
+        if len(found_users) > 1:
+            logger.warning(f"Найдено {len(found_users)} лавок с одинаковым UID {lavka_uid}:")
+            for u in found_users:
+                logger.warning(f"  - Username: {u['username']}, Server: {u['serverId']}")
+            if server_id is not None:
+                logger.info(f"Будет использована лавка на сервере {server_id}")
+        elif len(found_users) == 0:
+            logger.warning(f"Лавка с UID {lavka_uid} не найдена")
+            return None
+
+        # Ищем лавку на указанном сервере (если server_id передан)
+        target_user_data = None
+        for user_data in users_data:
+            user_lavka_uid_raw = user_data.get("LavkaUid")
+            if user_lavka_uid_raw is None or user_lavka_uid_raw == 0:
+                continue
+
+            user_lavka_uid = str(user_lavka_uid_raw)
             if user_lavka_uid != lavka_uid:
                 continue
+
+            user_server = user_data.get("serverId")
             
-            username = user_data.get("username") or "Unknown"
-            server_id = user_data.get("serverId") or 0
-            user_status = bool(user_data.get("userStatus", 0))
+            # Если server_id указан - ищем точное совпадение
+            if server_id is not None and user_server != server_id:
+                continue
             
-            sell_items: List[LavkaItem] = []
-            buy_items: List[LavkaItem] = []
-            
-            # Извлекаем предметы на продажу
-            items_sell = user_data.get("items_sell") or []
-            prices_sell = user_data.get("price_sell") or []
-            counts_sell = user_data.get("count_sell") or []
-            
-            if items_sell and prices_sell and counts_sell:
-                min_len = min(len(items_sell), len(prices_sell), len(counts_sell))
-                for i in range(min_len):
-                    parsed_id = self.parse_item_id(items_sell[i])
-                    if parsed_id is None:
-                        continue
-                    try:
-                        sell_items.append(LavkaItem(
-                            itemId=parsed_id,
-                            itemName=self.get_item_name(parsed_id),
-                            price=float(prices_sell[i]),
-                            count=int(counts_sell[i]),
-                            type=OfferType.SELL,
-                        ))
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Пропущен предмет продажи: {e}")
-            
-            # Извлекаем предметы на покупку
-            items_buy = user_data.get("items_buy") or []
-            prices_buy = user_data.get("price_buy") or []
-            counts_buy = user_data.get("count_buy") or []
-            
-            if items_buy and prices_buy and counts_buy:
-                min_len = min(len(items_buy), len(prices_buy), len(counts_buy))
-                for i in range(min_len):
-                    parsed_id = self.parse_item_id(items_buy[i])
-                    if parsed_id is None:
-                        continue
-                    try:
-                        buy_items.append(LavkaItem(
-                            itemId=parsed_id,
-                            itemName=self.get_item_name(parsed_id),
-                            price=float(prices_buy[i]),
-                            count=int(counts_buy[i]),
-                            type=OfferType.BUY,
-                        ))
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Пропущен предмет покупки: {e}")
-            
-            return LavkaDetail(
-                lavkaUid=lavka_uid,
-                username=username,
-                serverId=server_id,
-                userStatus=user_status,
-                sellItems=sell_items,
-                buyItems=buy_items,
-                totalSell=len(sell_items),
-                totalBuy=len(buy_items),
-            )
-        
-        return None
+            # Нашли подходящую лавку
+            target_user_data = user_data
+            break
+
+        # Если не нашли с server_id, берём первую найденную (fallback)
+        if target_user_data is None and found_users:
+            for user_data in users_data:
+                user_lavka_uid_raw = user_data.get("LavkaUid")
+                if user_lavka_uid_raw is None or user_lavka_uid_raw == 0:
+                    continue
+                user_lavka_uid = str(user_lavka_uid_raw)
+                if user_lavka_uid == lavka_uid:
+                    target_user_data = user_data
+                    break
+
+        if target_user_data is None:
+            return None
+
+        username = target_user_data.get("username") or "Unknown"
+        server_id_result = target_user_data.get("serverId") or 0
+        user_status = bool(target_user_data.get("userStatus", 0))
+
+        sell_items: List[LavkaItem] = []
+        buy_items: List[LavkaItem] = []
+
+        # Извлекаем предметы на продажу
+        items_sell = target_user_data.get("items_sell") or []
+        prices_sell = target_user_data.get("price_sell") or []
+        counts_sell = target_user_data.get("count_sell") or []
+
+        if items_sell and prices_sell and counts_sell:
+            min_len = min(len(items_sell), len(prices_sell), len(counts_sell))
+            for i in range(min_len):
+                parsed_id = self.parse_item_id(items_sell[i])
+                if parsed_id is None:
+                    continue
+                try:
+                    sell_items.append(LavkaItem(
+                        itemId=parsed_id,
+                        itemName=self.get_item_name(parsed_id),
+                        price=float(prices_sell[i]),
+                        count=int(counts_sell[i]),
+                        type=OfferType.SELL,
+                    ))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Пропущен предмет продажи: {e}")
+
+        # Извлекаем предметы на покупку
+        items_buy = target_user_data.get("items_buy") or []
+        prices_buy = target_user_data.get("price_buy") or []
+        counts_buy = target_user_data.get("count_buy") or []
+
+        if items_buy and prices_buy and counts_buy:
+            min_len = min(len(items_buy), len(prices_buy), len(counts_buy))
+            for i in range(min_len):
+                parsed_id = self.parse_item_id(items_buy[i])
+                if parsed_id is None:
+                    continue
+                try:
+                    buy_items.append(LavkaItem(
+                        itemId=parsed_id,
+                        itemName=self.get_item_name(parsed_id),
+                        price=float(prices_buy[i]),
+                        count=int(counts_buy[i]),
+                        type=OfferType.BUY,
+                    ))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Пропущен предмет покупки: {e}")
+
+        return LavkaDetail(
+            lavkaUid=lavka_uid,
+            username=username,
+            serverId=server_id_result,
+            userStatus=user_status,
+            sellItems=sell_items,
+            buyItems=buy_items,
+            totalSell=len(sell_items),
+            totalBuy=len(buy_items),
+        )

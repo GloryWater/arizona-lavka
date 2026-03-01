@@ -1,318 +1,528 @@
-import React, { useState, FormEvent, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import apiClient from '../api/marketplace';
-import { Button } from '../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Select } from '../components/ui/Select';
-import { ErrorState } from '../components/states/ErrorState';
-import { Settings, Download, AlertCircle, TrendingUp, Tag, Zap } from 'lucide-react';
-import { SERVERS, MODE_OPTIONS } from '../utils/constants';
-import { useNavigate } from 'react-router-dom';
+'use client';
 
-interface Category {
-  key: string;
-  name: string;
-}
-
-type GeneratorMode = 'standard' | 'liquidity' | 'category';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import {
+  Settings,
+  Download,
+  Server,
+  TrendingUp,
+  TrendingDown,
+  CheckCircle,
+  Loader2,
+  Copy,
+  ClipboardCheck,
+  Database,
+  ListFilter,
+  Layers,
+} from 'lucide-react';
+import { configApi } from '@/shared/api';
+import { useToast } from '@/shared/ui/Toast';
+import type { ConfigMode, ConfigGenerateResponse, ConfigGenerationType } from '@/shared/types';
+import { SERVERS } from '@/shared/lib/constants';
+import {
+  Card,
+  CardContent,
+  Button,
+  Select,
+  Badge,
+  EmptyState,
+  Alert,
+  CategoryBlock,
+  Input,
+} from '@/shared/ui';
 
 export function ConfigGeneratorPage() {
-  const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [generatorMode, setGeneratorMode] = useState<GeneratorMode>('standard');
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [formData, setFormData] = useState({
-    server_id: '0',
-    mode: 'SELL' as 'SELL' | 'BUY',
-    percentage: '-5',
-    top_count: '10',
-    category: 'all',
+  const toast = useToast();
+  
+  // Основные параметры
+  const [selectedServer, setSelectedServer] = useState<string>('');
+  const [mode, setMode] = useState<ConfigMode>('SELL');
+  const [percentage, setPercentage] = useState<number>(-5);
+  
+  // Способ генерации
+  const [generationType, setGenerationType] = useState<ConfigGenerationType>('all');
+  const [topCount, setTopCount] = useState<number>(20);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
+  // Результаты
+  const [generatedConfig, setGeneratedConfig] = useState<unknown[]>([]);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Загрузка категорий
+  const { data: categories } = useQuery({
+    queryKey: ['config-categories'],
+    queryFn: () => configApi.getCategories(),
+    staleTime: 1000 * 60 * 30,
   });
 
-  useEffect(() => {
-    const loadCategories = async () => {
+  // Загрузка настроек генерации
+  const { data: generationSettings } = useQuery({
+    queryKey: ['config-generation-settings'],
+    queryFn: async () => {
       try {
-        const response = await apiClient.get<{ categories: Category[] }>('/config/categories');
-        setCategories(response.data.categories);
-      } catch (err) {
-        console.error('Error loading categories:', err);
+        const settings = await configApi.getSettings();
+        const configSetting = settings.find(s => s.key === 'config_generation_methods');
+        return configSetting?.value || { allow_all: true, allow_liquidity: true, allow_category: true };
+      } catch {
+        return { allow_all: true, allow_liquidity: true, allow_category: true };
       }
-    };
-    loadCategories();
-  }, []);
+    },
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const handleDownload = async (blob: Blob, filename: string) => {
-    // blob содержит JSON данные в кодировке cp1251 от сервера
-    // Для скачивания просто передаём blob напрямую
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+  // Генерация конфига
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedServer) throw new Error('Выберите сервер');
+      
+      const serverId = parseInt(selectedServer);
+      
+      switch (generationType) {
+        case 'all':
+          return configApi.generateAll(serverId, mode, percentage);
+        case 'liquidity':
+          return configApi.generateByLiquidity(serverId, mode, percentage, topCount);
+        case 'category':
+          if (!selectedCategory) throw new Error('Выберите категорию');
+          return configApi.generateByCategory(serverId, mode, percentage, selectedCategory);
+        default:
+          throw new Error('Неизвестный тип генерации');
+      }
+    },
+    onSuccess: (data: ConfigGenerateResponse) => {
+      const configData = data.config || [];
+      setGeneratedConfig(configData);
+      toast.success(
+        `Сгенерировано ${data.total_items || configData.length} предметов`,
+        'Конфиг готов'
+      );
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Не удалось сгенерировать конфиг', 'Ошибка');
+    },
+  });
+
+  const handleCopy = async () => {
+    if (generatedConfig.length === 0) return;
+    
+    try {
+      const json = JSON.stringify(generatedConfig, null, 2);
+      await navigator.clipboard.writeText(json);
+      setIsCopied(true);
+      toast.success('Конфиг скопирован в буфер обмена');
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch {
+      toast.error('Не удалось скопировать конфиг', 'Ошибка');
+    }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
-    setError(null);
-    setIsLoading(true);
+  const handleDownload = async () => {
+    if (!selectedServer || generatedConfig.length === 0) return;
 
     try {
-      let response;
-      let filename = '';
-      
-      // Получаем название сервера
-      const selectedServer = SERVERS.find(s => s.id.toString() === formData.server_id);
-      const serverName = selectedServer?.name.toLowerCase().replace(/\s+/g, '_') || 'server';
-      const action = formData.mode.toLowerCase();
-      // Генерируем случайное число от 4 до 7 цифр (1000-9999999)
-      const randomNum = Math.floor(1000 + Math.random() * 8999999);
+      const serverId = parseInt(selectedServer);
+      let result: { data: Blob; filename?: string };
 
-      if (generatorMode === 'standard') {
-        response = await apiClient.post(
-          '/config/generate/download',
-          {
-            server_id: parseInt(formData.server_id),
-            mode: formData.mode,
-            percentage: parseFloat(formData.percentage),
-            save_to_history: true,
-          },
-          { responseType: 'blob' }
-        );
-        // Формат: action_server_numbers.json
-        filename = `${action}_${serverName}_${randomNum}.json`;
-      } else if (generatorMode === 'liquidity') {
-        response = await apiClient.post(
-          `/config/generate/liquidity?server_id=${formData.server_id}&mode=${formData.mode}&percentage=${formData.percentage}&top_count=${formData.top_count}`,
-          {},
-          { responseType: 'blob' }
-        );
-        filename = `${action}_${serverName}_${randomNum}.json`;
-      } else {
-        response = await apiClient.post(
-          `/config/generate/category?server_id=${formData.server_id}&mode=${formData.mode}&percentage=${formData.percentage}&category=${formData.category}`,
-          {},
-          { responseType: 'blob' }
-        );
-        filename = `${action}_${serverName}_${randomNum}.json`;
+      switch (generationType) {
+        case 'all':
+          result = await configApi.downloadGenerated(serverId, mode, percentage);
+          break;
+        case 'liquidity':
+          result = await configApi.downloadByLiquidity(serverId, mode, percentage, topCount);
+          break;
+        case 'category':
+          if (!selectedCategory) throw new Error('Выберите категорию');
+          result = await configApi.downloadByCategory(serverId, mode, percentage, selectedCategory);
+          break;
+        default:
+          throw new Error('Неизвестный тип генерации');
       }
 
-      handleDownload(response.data, filename);
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const errorData = (err as { response?: { data?: { detail?: string } } }).response?.data;
-        setError(errorData?.detail || 'Ошибка генерации конфига');
-      } else {
-        setError('Ошибка генерации конфига');
-      }
-    } finally {
-      setIsLoading(false);
+      const { data: blob, filename } = result;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `config_${mode.toLowerCase()}_${selectedServer}_${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('Файл скачан в кодировке cp1251', 'Загрузка завершена');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Не удалось скачать конфиг', 'Ошибка');
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-12">
-        <Card>
-          <CardContent>
-            <div className="text-center py-8">
-              <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-white mb-2">Требуется авторизация</h2>
-              <p className="text-gray-400 mb-4">
-                Для использования генератора конфигов необходимо войти в аккаунт
+  const getServerName = (id: string) => {
+    const server = SERVERS.find((s) => s.id.toString() === id);
+    return server?.name || 'Неизвестно';
+  };
+
+  const getPercentageHint = () => {
+    if (percentage === 0) {
+      return 'Предметы будут иметь рыночную цену';
+    } else if (percentage < 0) {
+      return `Цена каждого предмета уменьшится на ${Math.abs(percentage)}%`;
+    } else {
+      return `Цена каждого предмета увеличится на ${percentage}%`;
+    }
+  };
+
+  const isGenerateDisabled = !selectedServer || 
+    (generationType === 'category' && !selectedCategory) ||
+    generateMutation.isPending;
+
+  const generationMethods = [
+    {
+      id: 'all' as const,
+      title: 'Все предметы',
+      description: 'Генерация конфига со всеми предметами, доступными на выбранном сервере. Подходит для создания полной торговой сети.',
+      icon: <Database className="h-6 w-6" />,
+      color: 'from-blue-500 to-cyan-500',
+      disabled: !(generationSettings as any)?.allow_all,
+    },
+    {
+      id: 'liquidity' as const,
+      title: 'По ликвидности',
+      description: 'Генерация топ-N самых ликвидных предметов. Идеально для быстрой торговли с высоким оборотом.',
+      icon: <TrendingUp className="h-6 w-6" />,
+      color: 'from-green-500 to-emerald-500',
+      disabled: !(generationSettings as any)?.allow_liquidity,
+    },
+    {
+      id: 'category' as const,
+      title: 'По категориям',
+      description: 'Генерация предметов определённой категории. Позволяет специализироваться на конкретных типах товаров.',
+      icon: <ListFilter className="h-6 w-6" />,
+      color: 'from-purple-500 to-pink-500',
+      disabled: !(generationSettings as any)?.allow_category,
+    },
+  ];
+
+  return (
+    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-6xl mx-auto"
+      >
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center space-x-4 mb-4">
+            <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <Settings className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+                Генератор конфигов
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Автоматическая генерация конфигов для торговых автоматов
               </p>
-              <Button onClick={() => navigate('/login')}>
-                Войти
+            </div>
+          </div>
+        </div>
+
+        {/* Generator Form */}
+        <Card className="mb-8">
+          <CardContent className="p-6">
+            {/* Способ генерации - карточки */}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                <Layers className="h-4 w-4" />
+                Способ генерации
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {generationMethods.map((method) => (
+                  <button
+                    key={method.id}
+                    type="button"
+                    disabled={method.disabled}
+                    onClick={() => setGenerationType(method.id)}
+                    className={`
+                      relative p-4 rounded-xl border-2 transition-all duration-200 text-left
+                      ${generationType === method.id
+                        ? `border-${method.color.split(' ')[0]} bg-${method.color.split(' ')[0]}/5`
+                        : 'border-border hover:border-primary/50'
+                      }
+                      ${method.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    `}
+                  >
+                    <div className={`h-10 w-10 rounded-lg bg-gradient-to-br ${method.color} flex items-center justify-center mb-3`}>
+                      <div className="text-white">
+                        {method.icon}
+                      </div>
+                    </div>
+                    <h4 className="font-semibold text-foreground mb-1">{method.title}</h4>
+                    <p className="text-sm text-muted-foreground">{method.description}</p>
+                    {generationType === method.id && (
+                      <div className="absolute top-3 right-3">
+                        <CheckCircle className={`h-5 w-5 text-${method.color.split(' ')[0]}`} />
+                      </div>
+                    )}
+                    {method.disabled && (
+                      <div className="absolute inset-0 bg-background/80 rounded-xl flex items-center justify-center">
+                        <Badge variant="neutral">Отключено</Badge>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Выбор топ-N для ликвидности */}
+            {generationType === 'liquidity' && (
+              <div className="mb-6">
+                <Select
+                  label="Количество предметов"
+                  value={topCount.toString()}
+                  onChange={(e) => setTopCount(parseInt(e.target.value))}
+                  icon={<TrendingUp className="h-4 w-4" />}
+                >
+                  <option value="10">Топ-10</option>
+                  <option value="20">Топ-20</option>
+                  <option value="50">Топ-50</option>
+                  <option value="100">Топ-100</option>
+                </Select>
+              </div>
+            )}
+
+            {/* Категории */}
+            {generationType === 'category' && categories && (
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-foreground mb-3">
+                  Выберите категорию
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {categories.map((category, index) => (
+                    <CategoryBlock
+                      key={category.key}
+                      name={category.name}
+                      selected={selectedCategory === index.toString()}
+                      onClick={() => setSelectedCategory(index.toString())}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Параметры генерации */}
+            <div className="border-t border-border pt-6 mt-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">
+                Параметры генерации
+              </h2>
+
+              {/* Основные параметры */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <Select
+                  label="Сервер"
+                  value={selectedServer}
+                  onChange={(e) => setSelectedServer(e.target.value)}
+                  icon={<Server className="h-4 w-4" />}
+                >
+                  <option value="">Выберите сервер</option>
+                  {SERVERS.map((server) => (
+                    <option key={server.id} value={server.id}>
+                      {server.name}
+                    </option>
+                  ))}
+                </Select>
+
+                <Select
+                  label="Режим"
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value as ConfigMode)}
+                  icon={mode === 'SELL' ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+                >
+                  <option value="SELL">Продажа (SELL)</option>
+                  <option value="BUY">Скупка (BUY)</option>
+                </Select>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Корректировка цены (%)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="-50"
+                      max="50"
+                      value={percentage.toString()}
+                      onChange={(e) => setPercentage(parseInt(e.target.value) || 0)}
+                      className="flex-1"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPercentage(-25)}
+                      className="text-xs"
+                    >
+                      −25%
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPercentage(-10)}
+                      className="text-xs"
+                    >
+                      −10%
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPercentage(-5)}
+                      className="text-xs"
+                    >
+                      −5%
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPercentage(0)}
+                      className="text-xs"
+                    >
+                      0%
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPercentage(5)}
+                      className="text-xs"
+                    >
+                      +5%
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPercentage(10)}
+                      className="text-xs"
+                    >
+                      +10%
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPercentage(25)}
+                      className="text-xs"
+                    >
+                      +25%
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground px-1">
+                    {getPercentageHint()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Кнопка генерации */}
+            <div className="flex items-center justify-between">
+              <Alert
+                variant="info"
+                description="Конфиг будет сгенерирован на основе текущих рыночных цен"
+                className="flex-1 mr-4"
+              />
+              <Button
+                onClick={() => generateMutation.mutate()}
+                isLoading={generateMutation.isPending}
+                disabled={isGenerateDisabled}
+                icon={
+                  generateMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Settings className="h-4 w-4" />
+                  )
+                }
+              >
+                {generateMutation.isPending ? 'Генерация...' : 'Сгенерировать'}
               </Button>
             </div>
           </CardContent>
         </Card>
-      </div>
-    );
-  }
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Генератор конфигов</h1>
-        <p className="text-gray-400">
-          Создайте торговый конфиг с использованием различных стратегий
-        </p>
-      </div>
+        {/* Results */}
+        {generatedConfig.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      Результат генерации
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Сервер: {getServerName(selectedServer)} • Режим:{' '}
+                      {mode === 'SELL' ? 'Продажа' : 'Скупка'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="success">
+                      <CheckCircle className="h-3 w-3" />
+                      {generatedConfig.length} предметов
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopy}
+                      icon={isCopied ? <ClipboardCheck className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    >
+                      {isCopied ? 'Скопировано' : 'Копировать'}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleDownload}
+                      icon={<Download className="h-4 w-4" />}
+                    >
+                      Скачать
+                    </Button>
+                  </div>
+                </div>
 
-      {error && (
-        <ErrorState title="Ошибка" description={error} onRetry={() => setError(null)} />
-      )}
+                {/* Preview */}
+                <div className="border border-border rounded-lg bg-muted/30 p-4 max-h-96 overflow-auto">
+                  <pre className="text-xs text-foreground font-mono">
+                    {JSON.stringify(generatedConfig.slice(0, 5), null, 2)}
+                    {generatedConfig.length > 5 && (
+                      <div className="text-center text-muted-foreground py-2">
+                        ... и ещё {generatedConfig.length - 5} предметов
+                      </div>
+                    )}
+                  </pre>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
-      {/* Выбор режима генерации */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <Card
-          hoverable
-          onClick={() => setGeneratorMode('standard')}
-          className={`cursor-pointer transition-all ${
-            generatorMode === 'standard' ? 'ring-2 ring-primary-500' : ''
-          }`}
-        >
-          <CardContent className="flex flex-col items-center text-center p-6">
-            <Settings className={`h-8 w-8 mb-3 ${
-              generatorMode === 'standard' ? 'text-primary-500' : 'text-gray-400'
-            }`} />
-            <h3 className="text-white font-semibold mb-1">Стандартный</h3>
-            <p className="text-sm text-gray-400">
-              Все предметы с IQR анализом
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card
-          hoverable
-          onClick={() => setGeneratorMode('liquidity')}
-          className={`cursor-pointer transition-all ${
-            generatorMode === 'liquidity' ? 'ring-2 ring-green-500' : ''
-          }`}
-        >
-          <CardContent className="flex flex-col items-center text-center p-6">
-            <TrendingUp className={`h-8 w-8 mb-3 ${
-              generatorMode === 'liquidity' ? 'text-green-500' : 'text-gray-400'
-            }`} />
-            <h3 className="text-white font-semibold mb-1">По ликвидности</h3>
-            <p className="text-sm text-gray-400">
-              Топ-N самых ликвидных предметов
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card
-          hoverable
-          onClick={() => setGeneratorMode('category')}
-          className={`cursor-pointer transition-all ${
-            generatorMode === 'category' ? 'ring-2 ring-blue-500' : ''
-          }`}
-        >
-          <CardContent className="flex flex-col items-center text-center p-6">
-            <Tag className={`h-8 w-8 mb-3 ${
-              generatorMode === 'category' ? 'text-blue-500' : 'text-gray-400'
-            }`} />
-            <h3 className="text-white font-semibold mb-1">По категории</h3>
-            <p className="text-sm text-gray-400">
-              Предметы определённой категории
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-2">
-            <Settings className="h-6 w-6 text-primary-500" />
-            <CardTitle>Параметры генерации</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Сервер и режим */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select
-                label="Сервер"
-                options={SERVERS.map(s => ({ value: String(s.id), label: s.name }))}
-                value={formData.server_id}
-                onChange={(e) => setFormData({ ...formData, server_id: e.target.value })}
+        {/* Empty State */}
+        {!selectedServer && generatedConfig.length === 0 && (
+          <Card>
+            <CardContent>
+              <EmptyState
+                title="Начните генерацию"
+                description="Выберите сервер и настройте параметры для генерации конфига"
+                icon={<Settings className="h-16 w-16" />}
               />
-
-              <Select
-                label="Режим"
-                options={MODE_OPTIONS}
-                value={formData.mode}
-                onChange={(e) => setFormData({ ...formData, mode: e.target.value as 'SELL' | 'BUY' })}
-              />
-            </div>
-
-            {/* Процент */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Процентная корректировка цены (%)
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                min="-50"
-                max="50"
-                className="input w-full"
-                value={formData.percentage}
-                onChange={(e) => setFormData({ ...formData, percentage: e.target.value })}
-              />
-              <p className="mt-1 text-sm text-gray-400">
-                Отрицательное значение уменьшит цену, положительное — увеличит
-              </p>
-            </div>
-
-            {/* Дополнительные параметры в зависимости от режима */}
-            {generatorMode === 'liquidity' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Количество топ предметов
-                </label>
-                <Select
-                  label=""
-                  options={[
-                    { value: '10', label: 'Топ 10' },
-                    { value: '50', label: 'Топ 50' },
-                    { value: '100', label: 'Топ 100' },
-                  ]}
-                  value={formData.top_count}
-                  onChange={(e) => setFormData({ ...formData, top_count: e.target.value })}
-                />
-              </div>
-            )}
-
-            {generatorMode === 'category' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Категория предметов
-                </label>
-                <Select
-                  label=""
-                  options={[
-                    { value: 'all', label: 'Все категории' },
-                    ...categories.map(c => ({ value: c.key, label: c.name })),
-                  ]}
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                />
-              </div>
-            )}
-
-            {/* Информация */}
-            <div className="bg-dark-border rounded-lg p-4">
-              <h4 className="text-white font-medium mb-2">Как это работает:</h4>
-              <ul className="text-sm text-gray-400 space-y-1">
-                <li>• IQR фильтрация выбросов для точного расчёта медианы</li>
-                <li>• Анализ исторических данных за 7 и 30 дней</li>
-                <li>• Расчёт тренда цены (рост/падение/стабильно)</li>
-                <li>• Оценка ликвидности предмета</li>
-                <li>• Взвешенный расчёт справедливой цены</li>
-              </ul>
-            </div>
-
-            <Button type="submit" className="w-full" isLoading={isLoading}>
-              <Download className="h-4 w-4 mr-2" />
-              {generatorMode === 'standard' && 'Сгенерировать и скачать конфиг'}
-              {generatorMode === 'liquidity' && 'Сгенерировать топ ликвидности'}
-              {generatorMode === 'category' && 'Сгенерировать по категории'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
+      </motion.div>
     </div>
   );
 }
