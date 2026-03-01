@@ -50,7 +50,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          uv-version: ${{ env.UV_VERSION }}
+          version: ${{ env.UV_VERSION }}
 
       # =======================================================================
       # UV КЭШИРОВАНИЕ - быстрая установка зависимостей
