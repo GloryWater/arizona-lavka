@@ -45,13 +45,13 @@ const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
             onClick={() => onOpenChange(false)}
             aria-hidden="true"
           />
 
           {/* Modal */}
-          <div 
+          <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             role="dialog"
             aria-modal="true"
@@ -60,7 +60,7 @@ const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               className="w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
@@ -95,24 +95,24 @@ const DialogContent: React.FC<DialogContentProps> = ({
   return (
     <div
       className={cn(
-        'bg-card rounded-2xl shadow-2xl overflow-hidden',
-        'border border-border',
+        'bg-card rounded-2xl shadow-2xl overflow-hidden border border-border/50',
+        'animate-expand-in',
         className
       )}
     >
       {(title || description || onClose) && (
-        <div className="flex items-center justify-between p-6 border-b border-border">
+        <div className="flex items-center justify-between p-6 border-b border-border/50">
           <div className="flex-1">
-            {title && <h2 className="text-xl font-semibold text-foreground">{title}</h2>}
-            {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+            {title && <h2 className="text-xl font-semibold text-foreground bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">{title}</h2>}
+            {description && <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>}
           </div>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 hover:bg-accent rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="p-2 hover:bg-accent/50 rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring -mr-2"
               aria-label="Close dialog"
             >
-              <X className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              <X className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -152,7 +152,7 @@ const DialogFooter: React.FC<DialogFooterProps> = ({ children, className }) => {
   return (
     <div
       className={cn(
-        'flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t border-border',
+        'flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t border-border/50',
         className
       )}
     >
@@ -197,7 +197,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <div className="flex items-start gap-4">
-          <div
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
             className={cn(
               'flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center',
               variant === 'destructive'
@@ -213,7 +216,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             )}
-          </div>
+          </motion.div>
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
@@ -222,7 +225,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <DialogFooter>
           <button
             onClick={() => onOpenChange(false)}
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent/50 rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {cancelText}
           </button>
@@ -230,10 +233,11 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onClick={handleConfirm}
             disabled={isLoading}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
               variant === 'destructive'
-                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/25'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25'
             )}
           >
             {isLoading ? 'Загрузка...' : confirmText}

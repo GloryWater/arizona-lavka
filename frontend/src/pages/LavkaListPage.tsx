@@ -51,7 +51,7 @@ export function LavkaListPage() {
 
   if (error) {
     return (
-      <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+      <div className="container max-w-screen-3xl px-4 md:px-6 py-8">
         <ErrorState
           title="Ошибка загрузки"
           description="Не удалось загрузить список лавок"
@@ -62,7 +62,7 @@ export function LavkaListPage() {
   }
 
   return (
-    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+    <div className="container max-w-screen-3xl px-4 md:px-6 py-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}

@@ -12,8 +12,8 @@ const Skeleton = React.forwardRef<HTMLDivElement, SkeletonProps>(
     <div
       ref={ref}
       className={cn(
-        'animate-pulse rounded-md bg-muted',
-        'bg-gradient-to-r from-muted via-muted-foreground/10 to-muted',
+        'rounded-md bg-muted',
+        'bg-gradient-to-r from-muted via-muted-foreground/15 to-muted',
         'bg-[length:200%_100%]',
         'animate-shimmer',
         className
@@ -33,24 +33,24 @@ interface SkeletonCardProps {}
 
 const SkeletonCard: React.FC<SkeletonCardProps> = () => {
   return (
-    <div className="rounded-xl border bg-card p-6 shadow-md overflow-hidden">
+    <div className="rounded-xl border border-border/50 bg-card p-6 shadow-md overflow-hidden">
       <div className="flex items-start justify-between mb-4">
-        <Skeleton className="h-6 w-3/4" />
+        <Skeleton className="h-6 w-3/4 rounded" />
         <Skeleton className="h-6 w-16 rounded-full" />
       </div>
-      <Skeleton className="h-8 w-1/3 mb-4" />
+      <Skeleton className="h-8 w-1/3 mb-4 rounded" />
       <div className="space-y-2">
         <div className="flex justify-between">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20 rounded" />
+          <Skeleton className="h-4 w-16 rounded" />
         </div>
         <div className="flex justify-between">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20 rounded" />
+          <Skeleton className="h-4 w-16 rounded" />
         </div>
         <div className="flex justify-between">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20 rounded" />
+          <Skeleton className="h-4 w-16 rounded" />
         </div>
       </div>
       <Skeleton className="h-10 w-full mt-6 rounded-lg" />

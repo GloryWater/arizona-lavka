@@ -134,13 +134,13 @@ export function HomePage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.03 }}
     >
-      <Card hoverable className="group overflow-hidden">
+      <Card hoverable variant="elevated" className="group overflow-hidden border-border/50">
         <CardContent className="p-0">
           <div className="p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-2">
-                  <Badge variant={offer.type === 'sell' ? 'success' : 'primary'}>
+                  <Badge variant={offer.type === 'sell' ? 'success' : 'primary'} className="shadow-sm">
                     {offer.type === 'sell' ? (
                       <>
                         <TrendingDown className="h-3 w-3" />
@@ -154,14 +154,14 @@ export function HomePage() {
                     )}
                   </Badge>
                 </div>
-                <h3 className="text-gray-900 dark:text-white font-medium line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <h3 className="text-gray-900 dark:text-white font-medium line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200">
                   {offer.itemName}
                 </h3>
               </div>
             </div>
 
             <div className="mb-3">
-              <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+              <span className="text-xl font-bold text-blue-600 dark:text-blue-400 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
                 {formatPrice(offer.price, offer.serverId)}
               </span>
             </div>
@@ -193,7 +193,7 @@ export function HomePage() {
 
           <Link
             to={`/lavka/${offer.lavkaUid}?server_id=${offer.serverId}`}
-            className="block bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-center py-2.5 text-sm font-semibold text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="block bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-center py-2.5 text-sm font-semibold text-white transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label={`Перейти в лавку ${offer.username} с предметом ${offer.itemName}`}
           >
             <div className="flex items-center justify-center space-x-2">
@@ -266,12 +266,12 @@ export function HomePage() {
   );
 
   return (
-    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+    <div className="container max-w-screen-3xl px-4 md:px-6 py-8">
       {/* Hero Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8 relative overflow-hidden glass-card rounded-2xl p-6 md:p-8"
+        className="mb-8 relative overflow-hidden glass-card rounded-2xl p-6 md:p-8 border border-border/50"
       >
         <div className="flex items-center space-x-4">
           <motion.div
@@ -282,7 +282,7 @@ export function HomePage() {
             <Sparkles className="h-7 w-7 text-white" />
           </motion.div>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Marketplace</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">Marketplace</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Мониторинг предложений в реальном времени
             </p>
@@ -359,7 +359,7 @@ export function HomePage() {
             exit={{ opacity: 0, y: -10 }}
             className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
           >
-            <Card variant="outlined">
+            <Card variant="outlined" className="border-border/50 hover:border-primary/30 transition-colors duration-200">
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
@@ -367,7 +367,7 @@ export function HomePage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Всего предложений</p>
-                    <p className="text-lg font-bold">
+                    <p className="text-lg font-bold text-foreground">
                       {viewMode === 'search' && searchResults
                         ? formatNumber(searchResults.total_buy + searchResults.total_sell)
                         : lavkasTotal
@@ -379,7 +379,7 @@ export function HomePage() {
               </CardContent>
             </Card>
 
-            <Card variant="outlined">
+            <Card variant="outlined" className="border-border/50 hover:border-green-500/30 transition-colors duration-200">
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 bg-green-500/10 rounded-xl flex items-center justify-center">
@@ -387,7 +387,7 @@ export function HomePage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Лавок</p>
-                    <p className="text-lg font-bold">
+                    <p className="text-lg font-bold text-foreground">
                       {lavkasTotal ? formatNumber(lavkasTotal) : '-'}
                     </p>
                   </div>
@@ -395,7 +395,7 @@ export function HomePage() {
               </CardContent>
             </Card>
 
-            <Card variant="outlined">
+            <Card variant="outlined" className="border-border/50 hover:border-purple-500/30 transition-colors duration-200">
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
@@ -403,7 +403,7 @@ export function HomePage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Скупка</p>
-                    <p className="text-lg font-bold">
+                    <p className="text-lg font-bold text-foreground">
                       {searchResults ? formatNumber(searchResults.total_buy) : '-'}
                     </p>
                   </div>
@@ -411,7 +411,7 @@ export function HomePage() {
               </CardContent>
             </Card>
 
-            <Card variant="outlined">
+            <Card variant="outlined" className="border-border/50 hover:border-orange-500/30 transition-colors duration-200">
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 bg-orange-500/10 rounded-xl flex items-center justify-center">
@@ -419,7 +419,7 @@ export function HomePage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Сервер</p>
-                    <p className="text-lg font-bold">
+                    <p className="text-lg font-bold text-foreground">
                       {selectedServer ? getServerName(selectedServer) : 'Все'}
                     </p>
                   </div>

@@ -21,6 +21,7 @@ import { configApi } from '@/shared/api';
 import { useToast } from '@/shared/ui/Toast';
 import type { ConfigMode, ConfigGenerateResponse, ConfigGenerationType } from '@/shared/types';
 import { SERVERS } from '@/shared/lib/constants';
+import { createCP1251Blob } from '@/shared/lib/encoding';
 import {
   Card,
   CardContent,
@@ -49,6 +50,15 @@ export function ConfigGeneratorPage() {
   // Результаты
   const [generatedConfig, setGeneratedConfig] = useState<unknown[]>([]);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Метаданные для скачивания
+  const [downloadParams, setDownloadParams] = useState<{
+    serverId: number;
+    mode: ConfigMode;
+    percentage: number;
+    topCount?: number;
+    category?: string;
+  } | null>(null);
 
   // Загрузка категорий
   const { data: categories } = useQuery({
@@ -94,6 +104,17 @@ export function ConfigGeneratorPage() {
     onSuccess: (data: ConfigGenerateResponse) => {
       const configData = data.config || [];
       setGeneratedConfig(configData);
+      
+      // Сохраняем параметры для скачивания
+      const serverId = parseInt(selectedServer);
+      setDownloadParams({
+        serverId,
+        mode,
+        percentage,
+        ...(generationType === 'liquidity' && { topCount }),
+        ...(generationType === 'category' && selectedCategory && { category: selectedCategory }),
+      });
+      
       toast.success(
         `Сгенерировано ${data.total_items || configData.length} предметов`,
         'Конфиг готов'
@@ -119,40 +140,46 @@ export function ConfigGeneratorPage() {
   };
 
   const handleDownload = async () => {
-    if (!selectedServer || generatedConfig.length === 0) return;
+    if (generatedConfig.length === 0 || !downloadParams) return;
 
     try {
-      const serverId = parseInt(selectedServer);
-      let result: { data: Blob; filename?: string };
+      // Формируем JSON в формате для бота (как на бэкенде)
+      const botConfig = generatedConfig.map((item: any) => ({
+        price: String(item.price),
+        maximum: item.maximum,
+        continue: "1",
+        all_count: item.all_count,
+        price_vc: String(item.price_vc),
+        position_tab: item.position_tab,
+        enabled: item.enabled,
+        count: String(item.count),
+        name: item.name,
+        count_maximum: 0,
+      }));
 
-      switch (generationType) {
-        case 'all':
-          result = await configApi.downloadGenerated(serverId, mode, percentage);
-          break;
-        case 'liquidity':
-          result = await configApi.downloadByLiquidity(serverId, mode, percentage, topCount);
-          break;
-        case 'category':
-          if (!selectedCategory) throw new Error('Выберите категорию');
-          result = await configApi.downloadByCategory(serverId, mode, percentage, selectedCategory);
-          break;
-        default:
-          throw new Error('Неизвестный тип генерации');
-      }
+      const jsonStr = JSON.stringify(botConfig, null, 2);
 
-      const { data: blob, filename } = result;
+      // Конвертируем в cp1251 для совместимости с ботом
+      const blob = createCP1251Blob(jsonStr);
+
+      // Формат имени: action_server_numbers.json
+      const serverName = getServerName(downloadParams.serverId.toString()).toLowerCase().replace(" ", "_");
+      const actionFile = downloadParams.mode === "SELL" ? "sell" : "buy";
+      const randomNum = Math.floor(Math.random() * 998999) + 1000;
+      const filename = `${actionFile}_${serverName}_${randomNum}.json`;
+
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = filename || `config_${mode.toLowerCase()}_${selectedServer}_${Date.now()}.json`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast.success('Файл скачан в кодировке cp1251', 'Загрузка завершена');
+      toast.success("Файл скачан в кодировке cp1251", "Загрузка завершена");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Не удалось скачать конфиг', 'Ошибка');
+      toast.error(error instanceof Error ? error.message : "Не удалось скачать конфиг", "Ошибка");
     }
   };
 
@@ -203,7 +230,7 @@ export function ConfigGeneratorPage() {
   ];
 
   return (
-    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+    <div className="container max-w-7xl px-4 md:px-6 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

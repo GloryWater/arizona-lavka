@@ -368,3 +368,61 @@ backup/
 # Uncomment if you want to exclude data from version control:
 # data/*.json
 # data/*.sqlite
+promo_article.bbcode
+e2e-results/
+playwright-report/
+
+# -----------------------------------------------------------------------------
+# Frontend Testing (Husky, Vitest, Playwright)
+# -----------------------------------------------------------------------------
+# Husky git hooks (auto-generated)
+.husky/
+
+# Test mocks and fixtures
+__mocks__/
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# E2E tests
+e2e/
+
+# Test configuration files
+playwright.config.ts
+vitest.config.ts
+
+# Test results and reports
+ui-ux-test-results.md
+TESTING.md
+
+# -----------------------------------------------------------------------------
+# GitHub Actions Test Workflows
+# -----------------------------------------------------------------------------
+.github/workflows/test.yml
+
+# -----------------------------------------------------------------------------
+# Build Artifacts
+# -----------------------------------------------------------------------------
+# Vite build output (frontend)
+frontend/dist/
+
+# -----------------------------------------------------------------------------
+# Additional IDE / Editor Files
+# -----------------------------------------------------------------------------
+# JetBrains IDEs - project settings
+.idea/modules.xml
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/runConfigurations/
+.idea/dictionaries/
+.idea/shelf/
+
+# -----------------------------------------------------------------------------
+# Data Files (Generated Marketplace Data)
+# -----------------------------------------------------------------------------
+# User data JSON files (generated/updated dynamically)
+data/info_*.json

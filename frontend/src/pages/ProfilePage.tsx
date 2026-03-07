@@ -129,7 +129,7 @@ export function ProfilePage() {
 
   if (!user) {
     return (
-      <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+      <div className="container max-w-screen-3xl px-4 md:px-6 py-8">
         <EmptyState
           title="Требуется авторизация"
           description="Войдите в свой аккаунт для просмотра профиля"
@@ -145,7 +145,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+    <div className="container max-w-screen-3xl px-4 md:px-6 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -165,73 +165,74 @@ export function ProfilePage() {
           {/* Profile Info */}
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center space-x-4">
-                  <div className="h-20 w-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-                    <User className="h-10 w-10 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-foreground">
-                      {user.username}
-                    </h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant={user.role === 'admin' ? 'destructive' : 'primary'}>
-                        {user.role === 'admin' ? (
-                          <>
-                            <Shield className="h-3 w-3" />
-                            Администратор
-                          </>
-                        ) : (
-                          <>
-                            <User className="h-3 w-3" />
-                            Пользователь
-                          </>
-                        )}
-                      </Badge>
-                      {user.is_premium && (
-                        <Badge variant="warning">
-                          <Crown className="h-3 w-3" />
-                          Premium
-                        </Badge>
+              <div className="flex items-start space-x-3 sm:space-x-4 mb-4 sm:mb-6">
+                <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25 flex-shrink-0">
+                  <User className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl sm:text-2xl font-bold text-foreground truncate">
+                    {user.username}
+                  </h2>
+                  <div className="flex items-center gap-1 sm:gap-2 mt-1 flex-wrap">
+                    <Badge variant={user.role === 'admin' ? 'destructive' : 'primary'}>
+                      {user.role === 'admin' ? (
+                        <>
+                          <Shield className="h-3 w-3" />
+                          <span className="hidden xs:inline">Администратор</span>
+                          <span className="xs:hidden">Admin</span>
+                        </>
+                      ) : (
+                        <>
+                          <User className="h-3 w-3" />
+                          <span className="hidden xs:inline">Пользователь</span>
+                          <span className="xs:hidden">User</span>
+                        </>
                       )}
-                    </div>
+                    </Badge>
+                    {user.is_premium && (
+                      <Badge variant="warning">
+                        <Crown className="h-3 w-3" />
+                        <span className="hidden xs:inline">Premium</span>
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   onClick={handleLogout}
                   icon={<LogOut className="h-4 w-4" />}
+                  className="flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0"
                 >
                   Выход
                 </Button>
               </div>
 
               {/* Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6">
                 <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
-                  <Mail className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Email</p>
-                    <p className="font-medium">{user.email}</p>
+                  <Mail className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground truncate">Email</p>
+                    <p className="font-medium truncate">{user.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
-                  <Calendar className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">
+                  <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground truncate">
                       Зарегистрирован
                     </p>
-                    <p className="font-medium">{formatDate(user.created_at)}</p>
+                    <p className="font-medium truncate">{formatDate(user.created_at)}</p>
                   </div>
                 </div>
                 {user.last_active_at && (
-                  <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">
+                  <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50 sm:col-span-2">
+                    <User className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-muted-foreground truncate">
                         Последняя активность
                       </p>
-                      <p className="font-medium">{formatDate(user.last_active_at)}</p>
+                      <p className="font-medium truncate">{formatDate(user.last_active_at)}</p>
                     </div>
                   </div>
                 )}
@@ -239,7 +240,7 @@ export function ProfilePage() {
 
               {/* Edit Name */}
               <div className="border-t border-border pt-6">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h3 className="font-semibold text-foreground">
                     Личная информация
                   </h3>
@@ -248,13 +249,14 @@ export function ProfilePage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setIsEditing(true)}
+                      className="w-full sm:w-auto"
                     >
                       Редактировать
                     </Button>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <Input
                     label="Имя"
                     value={formData.first_name}
@@ -276,10 +278,11 @@ export function ProfilePage() {
                 </div>
 
                 {isEditing && (
-                  <div className="flex justify-end gap-2 mt-4">
+                  <div className="flex justify-end gap-2 mt-4 flex-wrap">
                     <Button
                       variant="ghost"
                       onClick={() => setIsEditing(false)}
+                      className="w-full sm:w-auto"
                     >
                       Отмена
                     </Button>
@@ -287,6 +290,7 @@ export function ProfilePage() {
                       onClick={handleSaveProfile}
                       isLoading={isLoading}
                       icon={<Save className="h-4 w-4" />}
+                      className="w-full sm:w-auto"
                     >
                       Сохранить
                     </Button>

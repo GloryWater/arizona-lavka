@@ -4,6 +4,18 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  // Add xs breakpoint for iPhone SE landscape and small devices
+  // Add 3xl/4xl for large monitors (2K/4K)
+  screens: {
+    'xs': '475px',
+    'sm': '640px',
+    'md': '768px',
+    'lg': '1024px',
+    'xl': '1280px',
+    '2xl': '1536px',
+    '3xl': '1920px',   // For large monitors
+    '4xl': '2560px',   // For 2K monitors
+  },
   darkMode: 'class',
   theme: {
     extend: {

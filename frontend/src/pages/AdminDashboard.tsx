@@ -98,19 +98,19 @@ export function AdminDashboard() {
   };
 
   return (
-    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+    <div className="container max-w-full px-4 md:px-6 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center space-x-4">
             <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
               <Shield className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Админ-панель</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">Админ-панель</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Панель управления Arizona Lavka Marketplace
               </p>
@@ -120,6 +120,7 @@ export function AdminDashboard() {
             variant="outline"
             onClick={handleExportUsers}
             icon={<Download className="h-4 w-4" />}
+            className="hover:shadow-md transition-all duration-200"
           >
             Экспорт пользователей
           </Button>
@@ -133,8 +134,8 @@ export function AdminDashboard() {
         className="mb-8"
       />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      {/* Stats Grid - Improved responsive layout */}
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-8">
         {statCards.map((card, index) => (
           <motion.div
             key={card.title}
@@ -142,7 +143,7 @@ export function AdminDashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
           >
-            <Card variant="outlined">
+            <Card variant="outlined" className="border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center space-x-4">
                   <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${card.bg}`}>
@@ -169,29 +170,41 @@ export function AdminDashboard() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-8">
         {/* Registrations Chart */}
         <Card>
-          <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Users className="h-5 w-5 text-blue-500" />
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
               Регистрации по дням
             </h2>
             {chartsLoading ? (
-              <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-48 sm:h-64 w-full" />
             ) : chartData && chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      borderColor: 'hsl(var(--border))',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                    labelStyle={{
+                      color: 'hsl(var(--foreground))',
+                    }}
+                    itemStyle={{
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  />
                   <Legend />
                   <Line type="monotone" dataKey="registrations" stroke="#3b82f6" name="Регистрации" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
+              <div className="h-48 sm:h-64 flex items-center justify-center text-muted-foreground">
                 Нет данных для отображения
               </div>
             )}
@@ -200,26 +213,38 @@ export function AdminDashboard() {
 
         {/* Configs Chart */}
         <Card>
-          <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-green-500" />
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
               Генерации конфигов по дням
             </h2>
             {chartsLoading ? (
-              <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-48 sm:h-64 w-full" />
             ) : chartData && chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      borderColor: 'hsl(var(--border))',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                    labelStyle={{
+                      color: 'hsl(var(--foreground))',
+                    }}
+                    itemStyle={{
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  />
                   <Legend />
                   <Bar dataKey="configs_generated" fill="#22c55e" name="Конфиги" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
+              <div className="h-48 sm:h-64 flex items-center justify-center text-muted-foreground">
                 Нет данных для отображения
               </div>
             )}
@@ -227,11 +252,11 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Date Filter */}
+      {/* Date Filter - Improved responsive layout */}
       <Card className="mb-8">
         <CardContent className="p-4">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 sm:gap-4">
+            <div className="flex-1 w-full sm:min-w-[180px]">
               <Input
                 type="date"
                 value={startDate}
@@ -239,7 +264,7 @@ export function AdminDashboard() {
                 label="Начальная дата"
               />
             </div>
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 w-full sm:min-w-[180px]">
               <Input
                 type="date"
                 value={endDate}
@@ -250,6 +275,7 @@ export function AdminDashboard() {
             <Button
               variant="primary"
               icon={<Calendar className="h-4 w-4" />}
+              className="w-full sm:w-auto"
             >
               Применить фильтр
             </Button>
@@ -259,6 +285,7 @@ export function AdminDashboard() {
                 setStartDate('');
                 setEndDate('');
               }}
+              className="w-full sm:w-auto"
             >
               Сбросить
             </Button>

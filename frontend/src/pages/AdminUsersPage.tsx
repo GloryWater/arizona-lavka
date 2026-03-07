@@ -118,7 +118,7 @@ export function AdminUsersPage() {
   };
 
   return (
-    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+    <div className="container max-w-full px-4 md:px-6 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -183,69 +183,75 @@ export function AdminUsersPage() {
             />
           ) : (
             <>
-              {/* Table Header */}
-              <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 border-b border-border text-sm font-medium text-muted-foreground">
-                <div className="col-span-1 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('id')}>
-                  ID <SortIcon field="id" />
-                </div>
-                <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('username')}>
-                  Логин <SortIcon field="username" />
-                </div>
-                <div className="col-span-3">Email</div>
-                <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('created_at')}>
-                  Дата регистрации <SortIcon field="created_at" />
-                </div>
-                <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('configs_count')}>
-                  Конфигов <SortIcon field="configs_count" />
-                </div>
-                <div className="col-span-1">Статус</div>
-                <div className="col-span-1">Действия</div>
-              </div>
-
-              {/* Table Body */}
-              <div className="divide-y divide-border">
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    className="grid grid-cols-12 gap-4 p-4 hover:bg-accent/50 transition-colors items-center"
-                  >
-                    <div className="col-span-1 text-sm text-foreground">#{user.id}</div>
-                    <div className="col-span-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-medium">
-                          {user.username.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-medium text-foreground">{user.username}</span>
-                      </div>
+              {/* Scrollable table wrapper */}
+              <div className="overflow-x-auto">
+                <div className="min-w-[800px]">
+                  {/* Table Header */}
+                  <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 border-b border-border text-sm font-medium text-muted-foreground">
+                    <div className="col-span-1 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('id')}>
+                      ID <SortIcon field="id" />
                     </div>
-                    <div className="col-span-3">
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                    <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('username')}>
+                      Логин <SortIcon field="username" />
                     </div>
-                    <div className="col-span-2">
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(user.created_at).toLocaleDateString('ru-RU')}
-                      </p>
+                    <div className="col-span-3">Email</div>
+                    <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('created_at')}>
+                      Дата регистрации <SortIcon field="created_at" />
                     </div>
-                    <div className="col-span-2">
-                      <Badge variant="primary">{user.configs_count || 0}</Badge>
+                    <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('configs_count')}>
+                      Конфигов <SortIcon field="configs_count" />
                     </div>
-                    <div className="col-span-1">
-                      <Badge variant={user.role === 'admin' ? 'destructive' : 'neutral'}>
-                        {user.role === 'admin' ? 'Admin' : 'User'}
-                      </Badge>
-                    </div>
-                    <div className="col-span-1">
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          icon={<MoreVertical className="h-4 w-4" />}
-                          onClick={() => setSelectedUser(user)}
-                        />
-                      </div>
-                    </div>
+                    <div className="col-span-1">Статус</div>
+                    <div className="col-span-1">Действия</div>
                   </div>
-                ))}
+
+                  {/* Table Body */}
+                  <div className="divide-y divide-border">
+                    {users.map((user) => (
+                      <div
+                        key={user.id}
+                        className="grid grid-cols-12 gap-4 p-4 hover:bg-accent/50 transition-colors items-center"
+                      >
+                        <div className="col-span-1 text-sm text-foreground">#{user.id}</div>
+                        <div className="col-span-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                              {user.username.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-medium text-foreground truncate">{user.username}</span>
+                          </div>
+                        </div>
+                        <div className="col-span-3">
+                          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-sm text-muted-foreground whitespace-nowrap">
+                            {new Date(user.created_at).toLocaleDateString('ru-RU')}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <Badge variant="primary">{user.configs_count || 0}</Badge>
+                        </div>
+                        <div className="col-span-1">
+                          <Badge variant={user.role === 'admin' ? 'destructive' : 'neutral'}>
+                            {user.role === 'admin' ? 'Admin' : 'User'}
+                          </Badge>
+                        </div>
+                        <div className="col-span-1">
+                          <div className="relative">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              icon={<MoreVertical className="h-4 w-4" />}
+                              onClick={() => setSelectedUser(user)}
+                              className="h-9 w-9"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Pagination */}

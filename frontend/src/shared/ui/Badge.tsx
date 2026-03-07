@@ -5,26 +5,26 @@ import { cn } from '@/shared/lib/utils';
 const badgeVariants = cva(
   'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all duration-200 ' +
   'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ' +
-  'select-none',
+  'select-none border',
   {
     variants: {
       variant: {
         primary:
-          'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20',
+          'bg-primary/10 text-primary hover:bg-primary/20 border-primary/20',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border',
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80 border-border',
         outline:
-          'border border-input text-foreground hover:bg-accent',
+          'border-border text-foreground hover:bg-accent',
         success:
-          'bg-success/10 text-success hover:bg-success/20 border border-success/20',
+          'bg-success/10 text-success hover:bg-success/20 border-success/20',
         destructive:
-          'bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20',
+          'bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20',
         warning:
-          'bg-warning/10 text-warning hover:bg-warning/20 border border-warning/20',
+          'bg-warning/10 text-warning hover:bg-warning/20 border-warning/20',
         neutral:
-          'bg-muted text-muted-foreground hover:bg-muted/80 border border-border',
+          'bg-muted text-muted-foreground hover:bg-muted/80 border-border',
         info:
-          'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/20',
+          'bg-info/10 text-info hover:bg-info/20 border-info/20',
       },
       size: {
         sm: 'px-2 py-0.5 text-xs gap-1',

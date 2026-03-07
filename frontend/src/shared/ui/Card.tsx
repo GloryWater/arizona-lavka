@@ -7,23 +7,24 @@ import { motion, HTMLMotionProps } from 'framer-motion';
 // ============================================================================
 
 interface CardProps extends HTMLMotionProps<'div'> {
-  variant?: 'default' | 'elevated' | 'outlined' | 'glass';
+  variant?: 'default' | 'elevated' | 'outlined' | 'glass' | 'premium';
   hoverable?: boolean;
 }
 
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = 'default', hoverable, children, ...props }, ref) => {
-    const baseStyles = 'rounded-xl transition-all duration-300 ease-out';
+    const baseStyles = 'rounded-xl transition-all duration-300 ease-out overflow-hidden';
 
     const variantStyles = {
-      default: 'bg-card text-card-foreground shadow-md',
-      elevated: 'bg-card text-card-foreground shadow-xl hover:shadow-2xl transition-shadow',
+      default: 'bg-card text-card-foreground shadow-md border border-border/50',
+      elevated: 'bg-card text-card-foreground shadow-lg border border-border/50 hover:shadow-xl',
       outlined: 'border-2 border-border bg-background shadow-sm',
-      glass: 'glass-card',
+      glass: 'glass-card border border-border/50',
+      premium: 'bg-gradient-to-br from-card to-card/80 shadow-lg border border-border/50 backdrop-blur-xl',
     };
 
     const hoverStyles = hoverable
-      ? 'hover:shadow-lg hover:scale-[1.02] cursor-pointer transform-gpu'
+      ? 'hover:shadow-xl hover:-translate-y-1 hover:border-ring/30 cursor-pointer transform-gpu'
       : '';
 
     return (
@@ -33,7 +34,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        whileHover={hoverable ? { scale: 1.02 } : {}}
+        whileHover={hoverable ? { scale: 1.01, y: -4 } : {}}
         {...props}
       >
         {children}
@@ -75,7 +76,8 @@ const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
     <h3
       ref={ref}
       className={cn(
-        'text-2xl font-semibold leading-none tracking-tight',
+        'text-2xl font-semibold leading-none tracking-tight text-foreground',
+        'bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent',
         className
       )}
       {...props}

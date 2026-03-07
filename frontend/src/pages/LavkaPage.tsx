@@ -44,7 +44,7 @@ export function LavkaPage() {
 
   if (error) {
     return (
-      <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+      <div className="container max-w-screen-3xl px-4 md:px-6 py-8">
         <ErrorState
           title="Ошибка загрузки"
           description="Не удалось загрузить информацию о лавке"
@@ -56,7 +56,7 @@ export function LavkaPage() {
 
   if (isLoading || !lavka) {
     return (
-      <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+      <div className="container max-w-screen-3xl px-4 md:px-6 py-8" data-testid="lavka-loading">
         <div className="mb-6">
           <Button variant="ghost" onClick={() => window.history.back()} icon={<ArrowLeft className="h-4 w-4" />}>
             Назад
@@ -66,22 +66,22 @@ export function LavkaPage() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center space-x-4 mb-6">
-                <Skeleton className="h-16 w-16 rounded-full" />
+                <Skeleton className="h-16 w-16 rounded-full" data-testid="skeleton" />
                 <div className="flex-1">
-                  <Skeleton className="h-6 w-48 mb-2" />
-                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-6 w-48 mb-2" data-testid="skeleton" />
+                  <Skeleton className="h-4 w-32" data-testid="skeleton" />
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-20 rounded-xl" />
+                  <Skeleton key={i} className="h-20 rounded-xl" data-testid="skeleton" />
                 ))}
               </div>
             </CardContent>
           </Card>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-xl" />
+              <Skeleton key={i} className="h-32 rounded-xl" data-testid="skeleton" />
             ))}
           </div>
         </div>
@@ -90,7 +90,7 @@ export function LavkaPage() {
   }
 
   return (
-    <div className="container max-w-screen-2xl px-4 md:px-6 py-8">
+    <div className="container max-w-screen-3xl px-4 md:px-6 py-8">
       {/* Back button */}
       <motion.div
         initial={{ opacity: 0, x: -20 }}

@@ -44,6 +44,18 @@ export function Header() {
   const { isDark, toggleTheme } = useThemeStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Close mobile menu on resize from mobile to desktop
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobileMenuOpen]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/');
@@ -52,19 +64,22 @@ export function Header() {
   const isActive = (href: string) => location.pathname === href;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" role="banner">
-      <div className="container flex h-16 max-w-screen-2xl items-center px-4 md:px-6">
-        {/* Logo */}
-        <Link to="/" className="mr-8 flex items-center space-x-3" aria-label="Arizona Lavka - главная страница">
+    <header
+      className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 transition-all duration-300"
+      role="banner"
+    >
+      <div className="container flex h-16 max-w-screen-3xl items-center px-4 md:px-6">
+        {/* Logo - Icon always visible, text on sm+ */}
+        <Link to="/" className="mr-4 sm:mr-8 flex items-center space-x-2 sm:space-x-3 flex-shrink-0 group" aria-label="Arizona Lavka - главная страница">
           <motion.div
-            whileHover={{ scale: 1.05 }}
+            whileHover={{ scale: 1.05, rotate: 5 }}
             whileTap={{ scale: 0.95 }}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25 flex-shrink-0 group-hover:shadow-xl group-hover:shadow-blue-500/30 transition-all duration-300"
           >
             <ShoppingBag className="h-5 w-5 text-white" aria-hidden="true" />
           </motion.div>
-          <div className="hidden sm:block">
-            <span className="block text-lg font-bold text-foreground">Arizona Lavka</span>
+          <div className="hidden sm:block overflow-hidden">
+            <span className="block text-lg font-bold text-foreground bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Arizona Lavka</span>
             <span className="block text-xs text-muted-foreground">Marketplace v5.0</span>
           </div>
         </Link>
@@ -76,10 +91,11 @@ export function Header() {
               key={link.href}
               to={link.href}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+                'hover:bg-accent/50 hover:text-foreground',
                 isActive(link.href)
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  ? 'bg-accent text-accent-foreground shadow-sm'
+                  : 'text-muted-foreground'
               )}
               aria-current={isActive(link.href) ? 'page' : undefined}
             >
@@ -92,10 +108,11 @@ export function Header() {
               key={link.href}
               to={link.href}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+                'hover:bg-accent/50 hover:text-foreground',
                 isActive(link.href)
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  ? 'bg-accent text-accent-foreground shadow-sm'
+                  : 'text-muted-foreground'
               )}
               aria-current={isActive(link.href) ? 'page' : undefined}
             >

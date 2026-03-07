@@ -73,14 +73,14 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500/10 via-background to-background">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500/5 via-background to-background">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="w-full max-w-md"
       >
-        <Card variant="elevated">
+        <Card variant="elevated" className="border-border/50">
           <CardContent className="p-8">
             {/* Header */}
             <div className="text-center mb-8">
@@ -92,7 +92,7 @@ export function RegisterPage() {
               >
                 <UserPlus className="h-7 w-7 text-white" />
               </motion.div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">
+              <h1 className="text-2xl font-bold text-foreground bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent mb-2">
                 Создание аккаунта
               </h1>
               <p className="text-sm text-muted-foreground">
@@ -113,6 +113,7 @@ export function RegisterPage() {
                 error={errors.username}
                 icon={<User className="h-5 w-5" />}
                 required
+                data-testid="username-input"
               />
 
               <Input
@@ -126,6 +127,7 @@ export function RegisterPage() {
                 error={errors.email}
                 icon={<Mail className="h-5 w-5" />}
                 required
+                data-testid="email-input"
               />
 
               <div className="grid grid-cols-2 gap-4">
@@ -163,6 +165,7 @@ export function RegisterPage() {
                 error={errors.password}
                 icon={<Lock className="h-5 w-5" />}
                 required
+                data-testid="password-input"
               >
                 <button
                   type="button"
@@ -188,6 +191,7 @@ export function RegisterPage() {
                 error={errors.confirmPassword}
                 icon={<Lock className="h-5 w-5" />}
                 required
+                data-testid="confirm-password-input"
               >
                 <button
                   type="button"
@@ -204,9 +208,10 @@ export function RegisterPage() {
 
               <Button
                 type="submit"
-                className="w-full h-12 text-base"
+                className="w-full h-12 text-base bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300"
                 isLoading={isLoading}
                 icon={<UserPlus className="h-5 w-5" />}
+                data-testid="submit-button"
               >
                 {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
               </Button>

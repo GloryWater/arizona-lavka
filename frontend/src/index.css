@@ -1,6 +1,8 @@
 /**
- * Arizona Lavka Marketplace - Global Styles.
+ * Arizona Lavka Marketplace - Global Styles
+ * Premium UI/UX Design System
  *
+ * @version 5.0.0
  * © 2026 Arizona Lavka Marketplace. All Rights Reserved.
  * License: Proprietary Commercial License
  */
@@ -9,23 +11,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   DESIGN TOKENS - CSS Custom Properties
+   ============================================================================ */
+
 @layer base {
   :root {
+    /* ==========================================================================
+       Color Palette - HSL Format
+       ========================================================================== */
+
     /* Background & Foreground */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
-    /* Cards */
+    /* Cards & Popovers */
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
-    /* Popovers */
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    /* Primary - Blue (#3b82f6) */
+    /* Primary - Blue (#3b82f6) - WCAG AA compliant */
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
+    --primary-muted: 221.2 83.2% 10%;
 
     /* Secondary */
     --secondary: 210 40% 96.1%;
@@ -43,13 +52,13 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    /* Success - Green (#22c55e) */
+    /* Semantic Colors */
     --success: 142.1 76.2% 36.3%;
     --success-foreground: 210 40% 98%;
-
-    /* Warning - Yellow (#eab308) */
     --warning: 38 92% 50%;
     --warning-foreground: 222.2 47.4% 11.2%;
+    --info: 221.2 83.2% 53.3%;
+    --info-foreground: 210 40% 98%;
 
     /* Borders & Inputs */
     --border: 214.3 31.8% 91.4%;
@@ -58,12 +67,42 @@
     /* Focus Ring */
     --ring: 221.2 83.2% 53.3%;
 
-    /* Radius - Standardized */
+    /* ==========================================================================
+       Border Radius
+       ========================================================================== */
+
     --radius: 0.75rem;
     --radius-sm: 0.5rem;
     --radius-lg: 1rem;
     --radius-xl: 1.25rem;
     --radius-2xl: 1.5rem;
+
+    /* ==========================================================================
+       Fluid Typography - Responsive font sizes (320px - 3840px)
+       Using clamp() for smooth scaling
+       ========================================================================== */
+
+    --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+    --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+    --text-base: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
+    --text-lg: clamp(1.125rem, 1rem + 0.65vw, 1.25rem);
+    --text-xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem);
+    --text-2xl: clamp(1.5rem, 1.25rem + 1.25vw, 1.875rem);
+    --text-3xl: clamp(1.875rem, 1.5rem + 1.85vw, 2.25rem);
+    --text-4xl: clamp(2.25rem, 1.75rem + 2.5vw, 3rem);
+    --text-5xl: clamp(3rem, 2rem + 5vw, 4rem);
+
+    /* ==========================================================================
+       Fluid Spacing - Responsive spacing system
+       ========================================================================== */
+
+    --space-1: clamp(0.25rem, 0.2rem + 0.25vw, 0.5rem);
+    --space-2: clamp(0.5rem, 0.4rem + 0.5vw, 0.75rem);
+    --space-3: clamp(0.75rem, 0.6rem + 0.75vw, 1rem);
+    --space-4: clamp(1rem, 0.8rem + 1vw, 1.5rem);
+    --space-6: clamp(1.5rem, 1.2rem + 1.5vw, 2rem);
+    --space-8: clamp(2rem, 1.5rem + 2.5vw, 3rem);
+    --space-12: clamp(3rem, 2rem + 5vw, 4rem);
   }
 
   .dark {
@@ -71,17 +110,16 @@
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
-    /* Cards */
+    /* Cards & Popovers */
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
-    /* Popovers */
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    /* Primary - Blue (#3b82f6) */
+    /* Primary - Brighter blue for dark mode */
     --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
+    --primary-muted: 217.2 91.2% 10%;
 
     /* Secondary */
     --secondary: 217.2 32.6% 17.5%;
@@ -95,17 +133,17 @@
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
 
-    /* Destructive - Red (#ef4444) */
+    /* Destructive */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    /* Success - Green (#22c55e) */
+    /* Semantic Colors */
     --success: 142.1 70.6% 45.3%;
     --success-foreground: 222.2 47.4% 11.2%;
-
-    /* Warning - Yellow (#eab308) */
     --warning: 45.4 93.4% 47.5%;
     --warning-foreground: 222.2 47.4% 11.2%;
+    --info: 217.2 91.2% 59.8%;
+    --info-foreground: 222.2 47.4% 11.2%;
 
     /* Borders & Inputs */
     --border: 217.2 32.6% 17.5%;
@@ -113,19 +151,34 @@
 
     /* Focus Ring */
     --ring: 224.3 76.3% 48%;
-
-    /* Radius - Standardized */
-    --radius: 0.75rem;
-    --radius-sm: 0.5rem;
-    --radius-lg: 1rem;
-    --radius-xl: 1.25rem;
-    --radius-2xl: 1.5rem;
   }
 }
 
+/* ============================================================================
+   BASE STYLES - Reset & Typography
+   ============================================================================ */
+
 @layer base {
+
+  /* Modern CSS Reset */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
   * {
     @apply border-[hsl(var(--border))];
+  }
+
+  /* Prevent horizontal overflow globally */
+  html,
+  body,
+  #root {
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   html {
@@ -133,45 +186,108 @@
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    @apply bg-[hsl(var(--background))] text-[hsl(var(--foreground))] antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
-    line-height: 1.5;
-    overflow-x: hidden;
+    @apply bg-[hsl(var(--background))] text-[hsl(var(--foreground))];
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: var(--text-base);
+    line-height: 1.6;
+    min-width: 320px;
   }
 
   #root {
-    @apply min-h-screen;
+    @apply min-h-screen w-full;
     display: flex;
     flex-direction: column;
   }
 
-  /* Prevent horizontal scroll */
-  body, html {
+  /* ==========================================================================
+     Typography - Fluid & Responsive
+     ========================================================================== */
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: balance;
+    line-height: 1.3;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: var(--text-4xl);
+    letter-spacing: -0.025em;
+  }
+
+  h2 {
+    font-size: var(--text-3xl);
+    letter-spacing: -0.02em;
+  }
+
+  h3 {
+    font-size: var(--text-2xl);
+  }
+
+  h4 {
+    font-size: var(--text-xl);
+  }
+
+  h5 {
+    font-size: var(--text-lg);
+  }
+
+  h6 {
+    font-size: var(--text-base);
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Images & Media - Prevent overflow */
+  img,
+  video,
+  canvas,
+  picture {
     max-width: 100%;
-    overflow-x: hidden;
+    height: auto;
+    display: block;
   }
 
-  /* Improve text selection */
+  /* Container utilities */
+  .container,
+  [class*="container"] {
+    @apply mx-auto px-4 sm:px-6 lg:px-8;
+    max-width: 100%;
+  }
+
+  /* ==========================================================================
+     Selection & Focus Styles
+     ========================================================================== */
+
   ::selection {
-    @apply bg-[hsl(var(--primary))/0.3] text-[hsl(var(--foreground))];
+    background-color: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
   }
 
-  /* Focus visible polyfill */
   :focus-visible {
     @apply outline-none ring-2 ring-[hsl(var(--ring))] ring-offset-2 ring-offset-[hsl(var(--background))];
   }
-
-  /* Remove focus ring for mouse users */
-  [data-focus-visible-added] {
-    @apply ring-2 ring-[hsl(var(--ring))] ring-offset-2 ring-offset-[hsl(var(--background))];
-  }
 }
 
-/* Custom scrollbar */
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
 @layer utilities {
+  /* ==========================================================================
+     Scrollbar Utilities
+     ========================================================================== */
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--background));
@@ -194,26 +310,157 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--foreground));
   }
-}
 
-/* Glassmorphism */
-@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ==========================================================================
+     Glassmorphism Effects
+     ========================================================================== */
+
   .glass {
-    @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50;
+    @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl;
+    @apply border border-white/20 dark:border-slate-700/50;
   }
 
   .glass-card {
-    @apply bg-white/50 dark:bg-slate-800/50 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 shadow-lg;
+    @apply bg-white/50 dark:bg-slate-800/50 backdrop-blur-xl;
+    @apply border border-white/20 dark:border-slate-700/50 shadow-lg;
   }
-}
 
-/* Animations */
-@layer utilities {
+  .glass-strong {
+    @apply bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl;
+    @apply border border-white/30 dark:border-slate-700/50;
+  }
+
+  .glass-subtle {
+    @apply bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl;
+    @apply border border-border;
+  }
+
+  /* ==========================================================================
+     Gradient Backgrounds
+     ========================================================================== */
+
+  .gradient-primary {
+    @apply bg-gradient-to-r from-blue-500 to-blue-600;
+  }
+
+  .gradient-success {
+    @apply bg-gradient-to-r from-green-500 to-emerald-600;
+  }
+
+  .gradient-destructive {
+    @apply bg-gradient-to-r from-red-500 to-rose-600;
+  }
+
+  .gradient-warning {
+    @apply bg-gradient-to-r from-yellow-500 to-amber-600;
+  }
+
+  /* ==========================================================================
+     Shadow & Glow Effects
+     ========================================================================== */
+
+  .shadow-glow-primary {
+    box-shadow:
+      0 0 20px hsl(var(--primary) / 0.3),
+      0 4px 14px hsl(var(--primary) / 0.2);
+  }
+
+  .shadow-glow-success {
+    box-shadow:
+      0 0 20px hsl(var(--success) / 0.3),
+      0 4px 14px hsl(var(--success) / 0.2);
+  }
+
+  /* ==========================================================================
+     Text Utilities
+     ========================================================================== */
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .break-word {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .muted {
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ==========================================================================
+     Focus & Interactive Elements
+     ========================================================================== */
+
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2 focus:ring-offset-[hsl(var(--background))];
+  }
+
+  /* WCAG compliant touch targets - minimum 44x44px */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .interactive {
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:scale-[1.02] active:scale-[0.98];
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+    @apply hover:shadow-xl hover:-translate-y-1;
+  }
+
+  .border-subtle {
+    @apply border border-border/50;
+  }
+
+  /* ==========================================================================
+     Animation Keyframes
+     ========================================================================== */
+
   @keyframes slide-up {
     from {
       opacity: 0;
       transform: translateY(20px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
@@ -225,9 +472,58 @@
       opacity: 0;
       transform: translateY(-20px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-up-fade {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-down-fade {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slide-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
     }
   }
 
@@ -235,6 +531,7 @@
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -245,6 +542,19 @@
       opacity: 0;
       transform: scale(0.95);
     }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes expand-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+
     to {
       opacity: 1;
       transform: scale(1);
@@ -255,10 +565,27 @@
     0% {
       background-position: -1000px 0;
     }
+
     100% {
       background-position: 1000px 0;
     }
   }
+
+  @keyframes pulse-subtle {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  /* ==========================================================================
+     Animation Utilities
+     ========================================================================== */
 
   .animate-slide-up {
     animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -266,6 +593,22 @@
 
   .animate-slide-down {
     animation: slide-down 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-slide-up-fade {
+    animation: slide-up-fade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-slide-down-fade {
+    animation: slide-down-fade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-slide-in-left {
+    animation: slide-in-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .animate-fade-in {
@@ -276,27 +619,27 @@
     animation: scale-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  .animate-expand-in {
+    animation: expand-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   .animate-shimmer {
     animation: shimmer 2s linear infinite;
-    background: linear-gradient(
-      to right,
-      hsl(var(--muted)) 0%,
-      hsl(var(--background)) 50%,
-      hsl(var(--muted)) 100%
-    );
+    background: linear-gradient(to right,
+        hsl(var(--muted)) 0%,
+        hsl(var(--muted-foreground) / 0.1) 50%,
+        hsl(var(--muted)) 100%);
     background-size: 1000px 100%;
   }
-}
 
-/* Focus styles */
-@layer utilities {
-  .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2 focus:ring-offset-[hsl(var(--background))];
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-}
 
-/* Screen reader only utility */
-@layer utilities {
+  /* ==========================================================================
+     Accessibility Utilities
+     ========================================================================== */
+
   .sr-only {
     position: absolute;
     width: 1px;
@@ -310,25 +653,102 @@
   }
 }
 
-/* Skip to content link for accessibility */
-.skip-to-content {
-  position: absolute;
-  left: -9999px;
-  z-index: 999;
-  padding: 1rem;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  text-decoration: none;
-  border-radius: var(--radius);
+/* ============================================================================
+   ACCESSIBILITY & FORM STYLES
+   ============================================================================ */
+
+@layer base {
+
+  /* Skip to content link */
+  .skip-to-content {
+    position: absolute;
+    left: -9999px;
+    z-index: 999;
+    padding: 1rem;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    text-decoration: none;
+    border-radius: var(--radius);
+  }
+
+  .skip-to-content:focus {
+    left: 1rem;
+    top: 1rem;
+  }
+
+  /* ==========================================================================
+     Form Elements - WCAG Compliant Sizing
+     ========================================================================== */
+
+  button,
+  [role="button"],
+  a.button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  input,
+  textarea,
+  select {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+  }
+
+  .form-group,
+  [class*="form-group"],
+  .field,
+  [class*="field"] {
+    margin-bottom: 1rem;
+  }
 }
 
-.skip-to-content:focus {
-  left: 1rem;
-  top: 1rem;
+/* ============================================================================
+   RESPONSIVE CONTAINER UTILITIES
+   ============================================================================ */
+
+@layer utilities {
+  .container-premium {
+    @apply mx-auto px-4 sm:px-6 lg:px-8;
+    max-width: 100%;
+  }
 }
 
-/* Reduced motion preference */
+@media (min-width: 1920px) {
+
+  .container-premium,
+  .container,
+  .max-w-screen-2xl,
+  .max-w-screen-3xl {
+    max-width: 1800px !important;
+  }
+}
+
+@media (min-width: 2560px) {
+
+  .container-premium,
+  .container,
+  .max-w-screen-2xl,
+  .max-w-screen-3xl {
+    max-width: 2400px !important;
+  }
+}
+
+@media (min-width: 3440px) {
+
+  .container-premium,
+  .container,
+  .max-w-screen-2xl,
+  .max-w-screen-3xl {
+    max-width: 3200px !important;
+  }
+}
+
+/* ============================================================================
+   REDUCED MOTION PREFERENCE
+   ============================================================================ */
+
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

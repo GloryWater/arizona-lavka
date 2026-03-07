@@ -10,6 +10,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryProvider, ThemeProvider } from '@/app/providers';
 import { Layout } from '@/widgets/layout';
 import { useAuthStore } from '@/features/auth/model/useAuthStore';
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import {
   HomePage,
   LavkaPage,
@@ -96,120 +97,122 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <BrowserRouter>
-      <QueryProvider>
-        <ThemeProvider defaultTheme="dark">
-          <Routes>
-            {/* Admin Routes */}
-            <Route
-              path="/admin"
-              element={
-                <AdminProtectedRoute>
-                  <AdminLayout>
-                    <AdminDashboard />
-                  </AdminLayout>
-                </AdminProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <AdminProtectedRoute>
-                  <AdminLayout>
-                    <AdminUsersPage />
-                  </AdminLayout>
-                </AdminProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/logs"
-              element={
-                <AdminProtectedRoute>
-                  <AdminLayout>
-                    <AdminLogsPage />
-                  </AdminLayout>
-                </AdminProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/settings"
-              element={
-                <AdminProtectedRoute>
-                  <AdminLayout>
-                    <AdminSettingsPage />
-                  </AdminLayout>
-                </AdminProtectedRoute>
-              }
-            />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <QueryProvider>
+          <ThemeProvider defaultTheme="dark">
+            <Routes>
+              {/* Admin Routes */}
+              <Route
+                path="/admin"
+                element={
+                  <AdminProtectedRoute>
+                    <AdminLayout>
+                      <AdminDashboard />
+                    </AdminLayout>
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminProtectedRoute>
+                    <AdminLayout>
+                      <AdminUsersPage />
+                    </AdminLayout>
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/logs"
+                element={
+                  <AdminProtectedRoute>
+                    <AdminLayout>
+                      <AdminLogsPage />
+                    </AdminLayout>
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/settings"
+                element={
+                  <AdminProtectedRoute>
+                    <AdminLayout>
+                      <AdminSettingsPage />
+                    </AdminLayout>
+                  </AdminProtectedRoute>
+                }
+              />
 
-            {/* Maintenance Page */}
-            <Route
-              path="/maintenance"
-              element={<MaintenancePage />}
-            />
+              {/* Maintenance Page */}
+              <Route
+                path="/maintenance"
+                element={<MaintenancePage />}
+              />
 
-            {/* Public Routes */}
-            <Route
-              path="/"
-              element={
-                <Layout>
-                  <HomePage />
-                </Layout>
-              }
-            />
-            <Route
-              path="/lavka/:lavkaUid"
-              element={
-                <Layout>
-                  <LavkaPage />
-                </Layout>
-              }
-            />
-            <Route
-              path="/config-generator"
-              element={
-                <Layout>
-                  <ConfigGeneratorPage />
-                </Layout>
-              }
-            />
-            <Route
-              path="/login"
-              element={
-                <Layout>
-                  <LoginPage />
-                </Layout>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <Layout>
-                  <RegisterPage />
-                </Layout>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <Layout>
-                  <ProfilePage />
-                </Layout>
-              }
-            />
-            <Route
-              path="/about"
-              element={
-                <Layout>
-                  <AboutPage />
-                </Layout>
-              }
-            />
-          </Routes>
-          <ToastContainer />
-        </ThemeProvider>
-      </QueryProvider>
-    </BrowserRouter>
+              {/* Public Routes */}
+              <Route
+                path="/"
+                element={
+                  <Layout>
+                    <HomePage />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/lavka/:lavkaUid"
+                element={
+                  <Layout>
+                    <LavkaPage />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/config-generator"
+                element={
+                  <Layout>
+                    <ConfigGeneratorPage />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/login"
+                element={
+                  <Layout>
+                    <LoginPage />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <Layout>
+                    <RegisterPage />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <Layout>
+                    <ProfilePage />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/about"
+                element={
+                  <Layout>
+                    <AboutPage />
+                  </Layout>
+                }
+              />
+            </Routes>
+            <ToastContainer />
+          </ThemeProvider>
+        </QueryProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

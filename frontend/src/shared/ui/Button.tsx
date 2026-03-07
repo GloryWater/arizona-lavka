@@ -7,7 +7,7 @@ const buttonVariants = cva(
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
   'disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed ' +
   'active:scale-[0.98] hover:scale-[1.02] ' +
-  'select-none',
+  'select-none text-foreground',
   {
     variants: {
       variant: {
@@ -18,7 +18,7 @@ const buttonVariants = cva(
         outline:
           'border-2 border-input bg-background hover:bg-accent hover:text-accent-foreground hover:shadow-md',
         ghost:
-          'hover:bg-accent hover:text-accent-foreground',
+          'hover:bg-accent hover:text-accent-foreground text-foreground',
         link:
           'text-primary underline-offset-4 hover:underline hover:text-primary/80',
         destructive:
@@ -52,6 +52,7 @@ export interface ButtonProps
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
   'aria-label'?: string;
+  'data-testid'?: string;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -66,13 +67,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       disabled,
       'aria-label': ariaLabel,
+      'data-testid': dataTestId,
       ...props
     },
     ref
   ) => {
     const hasIconOnly = !children && icon;
     const effectiveSize = hasIconOnly ? (size === 'md' ? 'icon' : size) : size;
-    
+
     return (
       <button
         className={cn(buttonVariants({ variant, size: effectiveSize, className }))}
@@ -80,6 +82,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || isLoading}
         aria-label={ariaLabel || (hasIconOnly ? 'button' : undefined)}
         aria-busy={isLoading}
+        data-testid={dataTestId}
         {...props}
       >
         {isLoading ? (
