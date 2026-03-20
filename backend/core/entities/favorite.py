@@ -12,6 +12,7 @@ class FavoriteItemEntity:
     """
     Domain сущность избранного предмета.
     """
+
     id: Optional[int] = None
     user_id: int = 0
     item_id: int = 0

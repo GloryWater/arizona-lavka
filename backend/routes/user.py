@@ -6,17 +6,17 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import User, ConfigHistory, FavoriteItem, PriceAlert
-from dependencies import get_db_session, get_current_user_required
+from dependencies import get_current_user_required, get_db_session
+from infrastructure.database.models import ConfigHistory, FavoriteItem, PriceAlert, User
 from models import (
-    UserProfileResponse,
     FavoriteItemCreate,
     FavoriteItemResponse,
     PriceAlertCreate,
     PriceAlertResponse,
+    UserProfileResponse,
 )
 
 router = APIRouter()
@@ -30,7 +30,9 @@ async def get_profile(
     """Получение профиля пользователя."""
     # Подсчёт конфигов
     configs_count_result = await session.execute(
-        select(func.count(ConfigHistory.id)).where(ConfigHistory.user_id == current_user.id)
+        select(func.count(ConfigHistory.id)).where(
+            ConfigHistory.user_id == current_user.id
+        )
     )
     configs_count = configs_count_result.scalar_one() or 0
 
@@ -59,7 +61,7 @@ async def get_favorites(
         .order_by(FavoriteItem.created_at.desc())
     )
     favorites = result.scalars().all()
-    
+
     return favorites
 
 
@@ -80,11 +82,11 @@ async def add_favorite(
         server_id=data.server_id,
         notes=data.notes,
     )
-    
+
     session.add(favorite)
     await session.commit()
     await session.refresh(favorite)
-    
+
     return favorite
 
 
@@ -96,16 +98,16 @@ async def delete_favorite(
 ):
     """Удаление предмета из избранного."""
     favorite = await session.get(FavoriteItem, favorite_id)
-    
+
     if not favorite:
         raise HTTPException(status_code=404, detail="Избранный предмет не найден")
-    
+
     if favorite.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
-    
+
     await session.delete(favorite)
     await session.commit()
-    
+
     return {"message": "Предмет удалён из избранного"}
 
 
@@ -122,7 +124,7 @@ async def get_alerts(
         .order_by(PriceAlert.created_at.desc())
     )
     alerts = result.scalars().all()
-    
+
     return alerts
 
 
@@ -141,11 +143,11 @@ async def create_alert(
         target_price=data.target_price,
         condition=data.condition,
     )
-    
+
     session.add(alert)
     await session.commit()
     await session.refresh(alert)
-    
+
     return alert
 
 
@@ -157,14 +159,14 @@ async def delete_alert(
 ):
     """Удаление уведомления."""
     alert = await session.get(PriceAlert, alert_id)
-    
+
     if not alert:
         raise HTTPException(status_code=404, detail="Уведомление не найдено")
-    
+
     if alert.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
-    
+
     await session.delete(alert)
     await session.commit()
-    
+
     return {"message": "Уведомление удалено"}

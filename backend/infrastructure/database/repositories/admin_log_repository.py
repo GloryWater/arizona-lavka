@@ -2,10 +2,10 @@
 AdminLog repository implementation.
 """
 
-from typing import Optional, List, Any
 from datetime import datetime
+from typing import Any, List, Optional
 
-from sqlalchemy import select, and_, desc
+from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.interfaces.repositories import IAdminLogRepository
@@ -59,7 +59,9 @@ class AdminLogRepository(IAdminLogRepository):
             if search_query.isdigit():
                 conditions.append(AdminLog.user_id == int(search_query))
             else:
-                user_subquery = select(User.id).where(User.username.ilike(f"%{search_query}%"))
+                user_subquery = select(User.id).where(
+                    User.username.ilike(f"%{search_query}%")
+                )
                 conditions.append(AdminLog.user_id.in_(user_subquery.scalar_subquery()))
 
         if conditions:

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """Запись кэша с данными и временем."""
+
     data: List[dict]
     timestamp: datetime
 
@@ -27,12 +28,13 @@ def _sanitize_item_name(name: str) -> str:
     """Санитизирует название предмета для защиты от XSS."""
     if not name:
         return name
-    return (name
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-            .replace("'", "&#x27;"))
+    return (
+        name.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#x27;")
+    )
 
 
 class MarketplaceAPI(IMarketplaceAPI):
@@ -48,8 +50,7 @@ class MarketplaceAPI(IMarketplaceAPI):
     def __init__(self, settings: Settings):
         self.settings = settings
         self._cache: TTLCache = TTLCache(
-            maxsize=settings.CACHE_MAX_SIZE,
-            ttl=settings.CACHE_TTL_SECONDS
+            maxsize=settings.CACHE_MAX_SIZE, ttl=settings.CACHE_TTL_SECONDS
         )
         self._cache_key = "marketplace_data"
         self._http_client: httpx.AsyncClient | None = None
@@ -76,6 +77,7 @@ class MarketplaceAPI(IMarketplaceAPI):
     def _check_circuit_breaker(self) -> bool:
         """Проверяет состояние circuit breaker."""
         import time
+
         current_time = time.time()
 
         if self._circuit_state == "closed":
@@ -103,6 +105,7 @@ class MarketplaceAPI(IMarketplaceAPI):
     def _record_failure(self) -> None:
         """Записывает неудачный запрос."""
         import time
+
         self._failure_count += 1
         self._last_failure_time = time.time()
 
@@ -136,7 +139,9 @@ class MarketplaceAPI(IMarketplaceAPI):
             logger.warning("Circuit breaker открыт - запрос к API заблокирован")
             if self._cache_key in self._cache:
                 entry = self._cache[self._cache_key]
-                logger.warning(f"Возвращаем устаревший кэш (возраст: {(datetime.now(timezone.utc) - entry.timestamp).total_seconds():.1f}с)")
+                logger.warning(
+                    f"Возвращаем устаревший кэш (возраст: {(datetime.now(timezone.utc) - entry.timestamp).total_seconds():.1f}с)"
+                )
                 return entry.data
             raise RuntimeError(
                 "Marketplace API временно недоступен. Circuit breaker открыт. "
@@ -157,8 +162,7 @@ class MarketplaceAPI(IMarketplaceAPI):
 
             # Сохранение в кэш
             self._cache[self._cache_key] = CacheEntry(
-                data=data,
-                timestamp=datetime.now(timezone.utc)
+                data=data, timestamp=datetime.now(timezone.utc)
             )
 
             self._record_success()

@@ -1,0 +1,63 @@
+server {
+    server_name lavka.glorysyntax.live;
+
+    # Базовые настройки
+    client_max_body_size 50M;
+    server_tokens off;
+
+    # Отключаем sendfile для избежания HTTP/2 ошибок
+    sendfile off;
+    tcp_nopush off;
+    tcp_nodelay on;
+
+    # Заголовки безопасности
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # ==========================================
+    # 1. FRONTEND (статические файлы напрямую)
+    # ==========================================
+    location / {
+        # Путь к dist папке внутри Docker контейнера
+        # Или смонтируйте volume с хоста
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+    }
+
+    # ==========================================
+    # 2. BACKEND API
+    # ==========================================
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 60s;
+        proxy_http_version 1.1;
+    }
+
+    # SSL (будет раскомментировано после установки Certbot)
+    # listen 443 ssl http2;
+    # ssl_certificate /etc/letsencrypt/live/lavka.glorysyntax.live/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/lavka.glorysyntax.live/privkey.pem;
+    # include /etc/letsencrypt/options-ssl-nginx.conf;
+    # ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    listen 80;
+}
+
+server {
+    if ($host = lavka.glorysyntax.live) {
+        return 301 https://$host$request_uri;
+    }
+    listen 80;
+    server_name lavka.glorysyntax.live;
+    return 404;
+}

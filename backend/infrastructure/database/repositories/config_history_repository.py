@@ -2,14 +2,14 @@
 ConfigHistory repository implementation.
 """
 
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Optional
 
-from sqlalchemy import select, func, desc
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.entities.config import ConfigHistoryEntity
 from application.interfaces.repositories import IConfigHistoryRepository
+from core.entities.config import ConfigHistoryEntity
 from infrastructure.database.models import ConfigHistory
 
 
@@ -111,26 +111,35 @@ class ConfigHistoryRepository(IConfigHistoryRepository):
         end_date: datetime,
     ) -> dict[str, int]:
         from sqlalchemy import text
+
         try:
-            query = text("""
+            query = text(
+                """
                 SELECT DATE(date_trunc('day', created_at)) as date, COUNT(id) as count
                 FROM config_history
                 WHERE created_at >= :start_date AND created_at <= :end_date
                 GROUP BY DATE(date_trunc('day', created_at))
                 ORDER BY date
-            """)
+            """
+            )
             result = await self.session.execute(
-                query,
-                {"start_date": start_date, "end_date": end_date}
+                query, {"start_date": start_date, "end_date": end_date}
             )
             return {row.date: row.count for row in result}
         except Exception:
             # Fallback для SQLite
-            query = select(
-                func.strftime('%Y-%m-%d', ConfigHistory.created_at).label('date'),
-                func.count(ConfigHistory.id).label('count')
-            ).where(
-                and_(ConfigHistory.created_at >= start_date, ConfigHistory.created_at <= end_date)
-            ).group_by(func.strftime('%Y-%m-%d', ConfigHistory.created_at))
+            query = (
+                select(
+                    func.strftime("%Y-%m-%d", ConfigHistory.created_at).label("date"),
+                    func.count(ConfigHistory.id).label("count"),
+                )
+                .where(
+                    and_(
+                        ConfigHistory.created_at >= start_date,
+                        ConfigHistory.created_at <= end_date,
+                    )
+                )
+                .group_by(func.strftime("%Y-%m-%d", ConfigHistory.created_at))
+            )
             result = await self.session.execute(query)
             return {row.date: row.count for row in result}

@@ -7,7 +7,7 @@
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,13 +53,18 @@ class AuditLogService:
             details: Детали события
             ip_address: IP адрес клиента
         """
-        from database import AuditLog
+        from infrastructure.database.models import AuditLog
 
         try:
             log_entry = AuditLog(
                 user_id=user_id,
                 action=event_type,
-                resource="user" if event_type in ["USER_REGISTERED", "USER_LOGGED_IN", "USER_DELETED"] else "config",
+                resource=(
+                    "user"
+                    if event_type
+                    in ["USER_REGISTERED", "USER_LOGGED_IN", "USER_DELETED"]
+                    else "config"
+                ),
                 resource_id=user_id,
                 ip_address=ip_address,
                 details=str(details) if details else None,

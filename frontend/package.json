@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
+    "@marsidev/react-turnstile": "^1.4.2",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-query-devtools": "^5.62.0",
     "@tanstack/react-table": "^8.20.5",
@@ -32,6 +33,7 @@
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-is": "^19.0.0",
     "react-hook-form": "^7.54.0",
     "react-router-dom": "^7.0.2",
     "recharts": "^3.7.0",

@@ -3,12 +3,12 @@ Infrastructure persistence layer.
 """
 
 from .rate_limiter import (
-    RateLimiterBase,
     InMemoryRateLimiter,
+    RateLimiterBase,
+    RateLimitResult,
     RedisRateLimiter,
     get_rate_limiter,
     reset_rate_limiter,
-    RateLimitResult,
 )
 
 __all__ = [

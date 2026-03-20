@@ -13,57 +13,57 @@ from functools import lru_cache
 from typing import AsyncGenerator, Optional
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from application.services import AuthAppService, MarketplaceAppService, UserAppService
 from config import Settings
-from database import DatabaseManager
-from services.marketplace_service import MarketplaceService
-from services.historical_data_service import HistoricalDataService
+from infrastructure.database.connection import DatabaseManager
+from infrastructure.database.models import User
+from infrastructure.database.repositories import (
+    AdminLogRepository,
+    AuditLogRepository,
+    ConfigHistoryRepository,
+    FavoriteItemRepository,
+    GlobalSettingRepository,
+    PriceAlertRepository,
+    UserRepository,
+)
+from infrastructure.database.uow import UnitOfWork
+from infrastructure.external.marketplace_api import MarketplaceAPI
+from services.auth_service import get_current_user_from_request
 from services.config_generator_service import ConfigGeneratorService
+from services.historical_data_service import HistoricalDataService
 from services.lavka_service import LavkaService
+from services.marketplace_service import MarketplaceService
 
 # =============================================================================
 # New Architecture Dependencies (Clean Architecture)
 # =============================================================================
 
-from infrastructure.database.repositories import (
-    UserRepository,
-    ConfigHistoryRepository,
-    FavoriteItemRepository,
-    PriceAlertRepository,
-    AuditLogRepository,
-    AdminLogRepository,
-    GlobalSettingRepository,
-)
-from infrastructure.external.marketplace_api import MarketplaceAPI
-from application.services import (
-    AuthAppService,
-    MarketplaceAppService,
-    UserAppService,
-)
-from services.config_generator_service import ConfigGeneratorService
 
 
 # =============================================================================
 # Settings Dependency
 # =============================================================================
 
+
 @lru_cache
 def get_settings() -> Settings:
     """
     Получает кэшированный экземпляр настроек.
-    
+
     Returns:
         Settings: Экземпляр настроек
     """
     from config import get_settings
+
     return get_settings()
 
 
 # =============================================================================
 # Database Dependency
 # =============================================================================
+
 
 def get_db_manager(request: Request) -> DatabaseManager:
     """
@@ -82,13 +82,13 @@ def get_db_manager(request: Request) -> DatabaseManager:
     if not db_manager:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database not initialized"
+            detail="Database not initialized",
         )
     return db_manager
 
 
 async def get_db_session(
-    db_manager: DatabaseManager = Depends(get_db_manager)
+    db_manager: DatabaseManager = Depends(get_db_manager),
 ) -> AsyncGenerator[AsyncSession, None]:
     """
     Зависимость для получения сессии базы данных.
@@ -108,7 +108,7 @@ async def get_db_session(
 
 
 async def get_db_session_no_commit(
-    db_manager: DatabaseManager = Depends(get_db_manager)
+    db_manager: DatabaseManager = Depends(get_db_manager),
 ) -> AsyncGenerator[AsyncSession, None]:
     """
     Зависимость для получения сессии базы данных без автоматического коммита.
@@ -137,8 +137,7 @@ async def get_db_session_no_commit(
 
 
 async def get_marketplace_service(
-    request: Request,
-    settings: Settings = Depends(get_settings)
+    request: Request, settings: Settings = Depends(get_settings)
 ) -> AsyncGenerator[MarketplaceService, None]:
     """
     Создаёт экземпляр MarketplaceService.
@@ -156,25 +155,25 @@ async def get_marketplace_service(
         MarketplaceService: Сервис marketplace
     """
     # Проверяем кэш в request.state (request-scoped кэш)
-    if not hasattr(request.state, 'services'):
+    if not hasattr(request.state, "services"):
         request.state.services = {}
 
-    if 'marketplace' in request.state.services:
-        yield request.state.services['marketplace']
+    if "marketplace" in request.state.services:
+        yield request.state.services["marketplace"]
         return
 
     service = MarketplaceService(settings)
-    request.state.services['marketplace'] = service
+    request.state.services["marketplace"] = service
 
     try:
         yield service
     finally:
         await service.close()
-        request.state.services.pop('marketplace', None)
+        request.state.services.pop("marketplace", None)
 
 
 async def get_historical_data_service(
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> AsyncGenerator[HistoricalDataService, None]:
     """
     Создаёт экземпляр HistoricalDataService.
@@ -195,7 +194,7 @@ async def get_historical_data_service(
 async def get_lavka_service(
     request: Request,
     marketplace_service: MarketplaceService = Depends(get_marketplace_service),
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> AsyncGenerator[LavkaService, None]:
     """
     Создаёт экземпляр LavkaService.
@@ -218,8 +217,10 @@ async def get_lavka_service(
 async def get_config_generator_service(
     session: AsyncSession = Depends(get_db_session_no_commit),
     marketplace_service: MarketplaceService = Depends(get_marketplace_service),
-    historical_data_service: HistoricalDataService = Depends(get_historical_data_service),
-    settings: Settings = Depends(get_settings)
+    historical_data_service: HistoricalDataService = Depends(
+        get_historical_data_service
+    ),
+    settings: Settings = Depends(get_settings),
 ) -> AsyncGenerator[ConfigGeneratorService, None]:
     """
     Создаёт экземпляр ConfigGeneratorService.
@@ -247,10 +248,10 @@ async def get_config_generator_service(
 # User Dependencies
 # =============================================================================
 
+
 async def get_current_user_optional(
-    request: Request,
-    session: AsyncSession = Depends(get_db_session)
-) -> Optional["User"]:
+    request: Request, session: AsyncSession = Depends(get_db_session)
+) -> Optional[User]:
     """
     Получает текущего пользователя (опционально).
 
@@ -261,15 +262,12 @@ async def get_current_user_optional(
     Returns:
         User | None: Объект пользователя или None
     """
-    from database import User
-    from services.auth_service import get_current_user_from_request
-
     return await get_current_user_from_request(request, session)
 
 
 async def get_current_user_required(
-    user: Optional["User"] = Depends(get_current_user_optional)
-) -> "User":
+    user: Optional[User] = Depends(get_current_user_optional),
+) -> User:
     """
     Требует обязательной авторизации.
 
@@ -291,9 +289,7 @@ async def get_current_user_required(
     return user
 
 
-async def get_current_admin(
-    user: "User" = Depends(get_current_user_required)
-) -> "User":
+async def get_current_admin(user: User = Depends(get_current_user_required)) -> User:
     """
     Требует чтобы пользователь был администратором.
 
@@ -318,57 +314,58 @@ async def get_current_admin(
 # New Architecture Dependencies (Clean Architecture)
 # =============================================================================
 
+
 async def get_user_repository(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AsyncGenerator[UserRepository, None]:
     """Создаёт UserRepository."""
     yield UserRepository(session)
 
 
 async def get_config_history_repository(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AsyncGenerator[ConfigHistoryRepository, None]:
     """Создаёт ConfigHistoryRepository."""
     yield ConfigHistoryRepository(session)
 
 
 async def get_favorite_item_repository(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AsyncGenerator[FavoriteItemRepository, None]:
     """Создаёт FavoriteItemRepository."""
     yield FavoriteItemRepository(session)
 
 
 async def get_price_alert_repository(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AsyncGenerator[PriceAlertRepository, None]:
     """Создаёт PriceAlertRepository."""
     yield PriceAlertRepository(session)
 
 
 async def get_audit_log_repository(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AsyncGenerator[AuditLogRepository, None]:
     """Создаёт AuditLogRepository."""
     yield AuditLogRepository(session)
 
 
 async def get_admin_log_repository(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AsyncGenerator[AdminLogRepository, None]:
     """Создаёт AdminLogRepository."""
     yield AdminLogRepository(session)
 
 
 async def get_global_setting_repository(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AsyncGenerator[GlobalSettingRepository, None]:
     """Создаёт GlobalSettingRepository."""
     yield GlobalSettingRepository(session)
 
 
 async def get_marketplace_api(
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> AsyncGenerator[MarketplaceAPI, None]:
     """Создаёт MarketplaceAPI."""
     api = MarketplaceAPI(settings)
@@ -380,7 +377,7 @@ async def get_marketplace_api(
 
 async def get_auth_app_service(
     user_repository: UserRepository = Depends(get_user_repository),
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> AsyncGenerator[AuthAppService, None]:
     """Создаёт AuthAppService."""
     yield AuthAppService(
@@ -395,7 +392,7 @@ async def get_auth_app_service(
 
 
 async def get_marketplace_app_service(
-    marketplace_api: MarketplaceAPI = Depends(get_marketplace_api)
+    marketplace_api: MarketplaceAPI = Depends(get_marketplace_api),
 ) -> AsyncGenerator[MarketplaceAppService, None]:
     """Создаёт MarketplaceAppService."""
     yield MarketplaceAppService(marketplace_api=marketplace_api)
@@ -403,8 +400,12 @@ async def get_marketplace_app_service(
 
 async def get_user_app_service(
     user_repository: UserRepository = Depends(get_user_repository),
-    config_history_repository: ConfigHistoryRepository = Depends(get_config_history_repository),
-    favorite_item_repository: FavoriteItemRepository = Depends(get_favorite_item_repository),
+    config_history_repository: ConfigHistoryRepository = Depends(
+        get_config_history_repository
+    ),
+    favorite_item_repository: FavoriteItemRepository = Depends(
+        get_favorite_item_repository
+    ),
     price_alert_repository: PriceAlertRepository = Depends(get_price_alert_repository),
 ) -> AsyncGenerator[UserAppService, None]:
     """Создаёт UserAppService."""
@@ -414,3 +415,16 @@ async def get_user_app_service(
         favorite_item_repository=favorite_item_repository,
         price_alert_repository=price_alert_repository,
     )
+
+
+async def get_unit_of_work(
+    db_manager: DatabaseManager = Depends(get_db_manager),
+) -> AsyncGenerator[UnitOfWork, None]:
+    """Создаёт UnitOfWork."""
+    # Получаем фабрику сессий из менеджера базы данных
+    uow = UnitOfWork(db_manager._session_maker)
+    try:
+        yield uow
+    finally:
+        # UnitOfWork сам управляет сессией через __aexit__
+        pass

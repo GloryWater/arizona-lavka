@@ -11,10 +11,10 @@ from typing import Any, Optional
 class AppException(Exception):
     """
     Базовое исключение приложения.
-    
+
     Все кастомные исключения наследуются от этого класса.
     """
-    
+
     def __init__(
         self,
         detail: str,
@@ -33,13 +33,14 @@ class AppException(Exception):
 # Client Errors (4xx)
 # =============================================================================
 
+
 class ValidationError(AppException):
     """
     Ошибка валидации данных (400).
-    
+
     Используется когда клиент отправил некорректные данные.
     """
-    
+
     def __init__(
         self,
         detail: str = "Некорректные данные",
@@ -57,10 +58,10 @@ class ValidationError(AppException):
 class UnauthorizedError(AppException):
     """
     Пользователь не авторизован (401).
-    
+
     Используется когда токен отсутствует или истёк.
     """
-    
+
     def __init__(
         self,
         detail: str = "Требуется авторизация",
@@ -78,10 +79,10 @@ class UnauthorizedError(AppException):
 class ForbiddenError(AppException):
     """
     Доступ запрещён (403).
-    
+
     Используется когда у пользователя нет прав для действия.
     """
-    
+
     def __init__(
         self,
         detail: str = "Доступ запрещён",
@@ -99,10 +100,10 @@ class ForbiddenError(AppException):
 class NotFoundError(AppException):
     """
     Ресурс не найден (404).
-    
+
     Используется когда запрошенный объект не существует.
     """
-    
+
     def __init__(
         self,
         detail: str = "Ресурс не найден",
@@ -120,10 +121,10 @@ class NotFoundError(AppException):
 class ConflictError(AppException):
     """
     Конфликт данных (409).
-    
+
     Используется когда ресурс уже существует или есть конфликт состояния.
     """
-    
+
     def __init__(
         self,
         detail: str = "Конфликт данных",
@@ -141,10 +142,10 @@ class ConflictError(AppException):
 class TooManyRequestsError(AppException):
     """
     Слишком много запросов (429).
-    
+
     Используется для rate limiting.
     """
-    
+
     def __init__(
         self,
         detail: str = "Слишком много запросов",
@@ -164,14 +165,15 @@ class TooManyRequestsError(AppException):
 # Server Errors (5xx)
 # =============================================================================
 
+
 class InternalServerError(AppException):
     """
     Внутренняя ошибка сервера (500).
-    
+
     Используется для непредвиденных ошибок. Клиенту показывается
     безопасное сообщение без технических деталей.
     """
-    
+
     def __init__(
         self,
         detail: str = "Внутренняя ошибка сервера",
@@ -189,10 +191,10 @@ class InternalServerError(AppException):
 class ServiceUnavailableError(AppException):
     """
     Сервис недоступен (503).
-    
+
     Используется когда зависимый сервис (БД, внешний API) недоступен.
     """
-    
+
     def __init__(
         self,
         detail: str = "Сервис временно недоступен",
@@ -210,10 +212,10 @@ class ServiceUnavailableError(AppException):
 class DatabaseError(AppException):
     """
     Ошибка базы данных (503).
-    
+
     Используется при ошибках подключения или выполнения запросов к БД.
     """
-    
+
     def __init__(
         self,
         detail: str = "Ошибка базы данных",
@@ -231,10 +233,10 @@ class DatabaseError(AppException):
 class ExternalAPIError(AppException):
     """
     Ошибка внешнего API (502).
-    
+
     Используется когда внешний сервис вернул ошибку.
     """
-    
+
     def __init__(
         self,
         detail: str = "Ошибка внешнего сервиса",
@@ -246,4 +248,26 @@ class ExternalAPIError(AppException):
             status_code=502,
             error_code=error_code or "EXTERNAL_API_ERROR",
             extra=extra,
+        )
+
+
+class TurnstileVerificationError(AppException):
+    """
+    Ошибка верификации Cloudflare Turnstile (403).
+
+    Используется когда токен Turnstile не прошёл проверку.
+    """
+
+    def __init__(
+        self,
+        detail: str = "Не удалось пройти проверку на бота",
+        error_code: Optional[str] = None,
+        error_codes: Optional[list[str]] = None,
+        extra: Optional[dict[str, Any]] = None,
+    ):
+        super().__init__(
+            detail=detail,
+            status_code=403,
+            error_code=error_code or "TURNSTILE_VERIFICATION_FAILED",
+            extra={**(extra or {}), "turnstile_error_codes": error_codes or []},
         )

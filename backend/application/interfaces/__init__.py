@@ -2,17 +2,15 @@
 Application interfaces - абстракции для инфраструктуры.
 """
 
+from .external import IMarketplaceAPI
 from .repositories import (
-    IUserRepository,
+    IAdminLogRepository,
+    IAuditLogRepository,
     IConfigHistoryRepository,
     IFavoriteItemRepository,
-    IPriceAlertRepository,
-    IAuditLogRepository,
-    IAdminLogRepository,
     IGlobalSettingRepository,
-)
-from .external import (
-    IMarketplaceAPI,
+    IPriceAlertRepository,
+    IUserRepository,
 )
 
 __all__ = [

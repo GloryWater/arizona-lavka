@@ -11,3 +11,4 @@ export { AdminUsersPage } from './AdminUsersPage';
 export { AdminLogsPage } from './AdminLogsPage';
 export { AdminSettingsPage } from './AdminSettingsPage';
 export { MaintenancePage } from './MaintenancePage';
+export { VerifyEmailPage } from './VerifyEmailPage';

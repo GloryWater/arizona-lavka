@@ -24,6 +24,7 @@ import {
   AdminLogsPage,
   AdminSettingsPage,
   MaintenancePage,
+  VerifyEmailPage,
 } from '@/pages';
 import { ToastContainer } from '@/shared/ui/Toast';
 
@@ -192,6 +193,14 @@ function App() {
                 }
               />
               <Route
+                path="/verify"
+                element={
+                  <Layout>
+                    <VerifyEmailPage />
+                  </Layout>
+                }
+              />
+              <Route
                 path="/profile"
                 element={
                   <Layout>
@@ -210,8 +219,10 @@ function App() {
             </Routes>
             <ToastContainer />
           </ThemeProvider>
+          {/* <YMInitializer accounts={[107200466]} /> */}
         </QueryProvider>
       </BrowserRouter>
+      {/* <YMInitializer accounts={[107200466]} options={{ webvisor: true }} version="2" /> */}
     </ErrorBoundary>
   );
 }

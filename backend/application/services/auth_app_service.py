@@ -7,12 +7,16 @@ Auth application service.
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
+from application.dtos import TelegramUserDTO, TokenDTO, UserLoginDTO, UserRegisterDTO
 from application.interfaces.repositories import IUserRepository
-from application.dtos import UserRegisterDTO, UserLoginDTO, TokenDTO, TelegramUserDTO
 from core.entities.user import UserEntity
-from core.exceptions import UnauthorizedError, BusinessRuleViolationError, ValidationError
+from core.exceptions import (
+    BusinessRuleViolationError,
+    UnauthorizedError,
+    ValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +32,18 @@ class PasswordHandler:
     @staticmethod
     def hash(password: str) -> str:
         import bcrypt
+
         salt = bcrypt.gensalt(rounds=12)
-        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')
+        hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+        return hashed.decode("utf-8")
 
     @staticmethod
     def verify(plain_password: str, hashed_password: str) -> bool:
         import bcrypt
+
         try:
             return bcrypt.checkpw(
-                plain_password.encode('utf-8'),
-                hashed_password.encode('utf-8')
+                plain_password.encode("utf-8"), hashed_password.encode("utf-8")
             )
         except (ValueError, TypeError):
             return False
@@ -53,7 +58,7 @@ class TokenManager:
         expires_delta: Optional[timedelta] = None,
         secret_key: str = None,
         algorithm: str = "HS256",
-        user_role: str = "user"
+        user_role: str = "user",
     ) -> str:
         from jose import jwt
 
@@ -64,12 +69,9 @@ class TokenManager:
         else:
             expire = _utcnow() + timedelta(minutes=30)
 
-        to_encode.update({
-            "exp": expire,
-            "iat": _utcnow(),
-            "type": "access",
-            "role": user_role
-        })
+        to_encode.update(
+            {"exp": expire, "iat": _utcnow(), "type": "access", "role": user_role}
+        )
 
         return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
@@ -78,7 +80,7 @@ class TokenManager:
         data: dict,
         expires_delta: Optional[timedelta] = None,
         secret_key: str = None,
-        algorithm: str = "HS256"
+        algorithm: str = "HS256",
     ) -> str:
         from jose import jwt
 
@@ -89,17 +91,16 @@ class TokenManager:
         else:
             expire = _utcnow() + timedelta(days=7)
 
-        to_encode.update({
-            "exp": expire,
-            "iat": _utcnow(),
-            "type": "refresh"
-        })
+        to_encode.update({"exp": expire, "iat": _utcnow(), "type": "refresh"})
 
         return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
     @staticmethod
-    def decode_token(token: str, secret_key: str, algorithm: str = "HS256") -> Optional[dict]:
+    def decode_token(
+        token: str, secret_key: str, algorithm: str = "HS256"
+    ) -> Optional[dict]:
         from jose import JWTError, jwt
+
         try:
             return jwt.decode(token, secret_key, algorithms=[algorithm])
         except JWTError:
@@ -180,7 +181,9 @@ class AuthAppService:
         )
 
         created = await self.user_repository.create(user)
-        logger.info(f"Зарегистрирован новый пользователь: {created.username} (ID: {created.id})")
+        logger.info(
+            f"Зарегистрирован новый пользователь: {created.username} (ID: {created.id})"
+        )
         return created
 
     async def authenticate(self, dto: UserLoginDTO) -> UserEntity:
@@ -197,7 +200,9 @@ class AuthAppService:
             UnauthorizedError: Если credentials неверны
         """
         # Поиск пользователя
-        user = await self.user_repository.get_by_username_or_email(dto.username_or_email)
+        user = await self.user_repository.get_by_username_or_email(
+            dto.username_or_email
+        )
         if not user:
             raise UnauthorizedError(message="Неверное имя пользователя или пароль")
 
@@ -296,7 +301,9 @@ class AuthAppService:
         user.refresh_token = None
         await self.user_repository.update(user)
 
-    async def login_or_create_telegram_user(self, telegram_user: TelegramUserDTO) -> UserEntity:
+    async def login_or_create_telegram_user(
+        self, telegram_user: TelegramUserDTO
+    ) -> UserEntity:
         """
         Вход или создание пользователя через Telegram.
 
@@ -339,7 +346,9 @@ class AuthAppService:
         )
 
         created = await self.user_repository.create(user)
-        logger.info(f"Создан новый Telegram пользователь: {created.username} (ID: {telegram_id})")
+        logger.info(
+            f"Создан новый Telegram пользователь: {created.username} (ID: {telegram_id})"
+        )
         return created
 
     async def _handle_failed_login(self, user: UserEntity) -> None:
@@ -347,9 +356,9 @@ class AuthAppService:
         user.login_attempts += 1
 
         if user.login_attempts >= self.max_login_attempts:
-            user.locked_until = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
-                minutes=self.lockout_duration_minutes
-            )
+            user.locked_until = datetime.now(timezone.utc).replace(
+                tzinfo=None
+            ) + timedelta(minutes=self.lockout_duration_minutes)
 
         await self.user_repository.update(user)
 

@@ -6,16 +6,17 @@ DTO используются для передачи данных между с�
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Any
-
+from typing import Any, List, Optional
 
 # =============================================================================
 # Auth DTOs
 # =============================================================================
 
+
 @dataclass
 class UserRegisterDTO:
     """DTO для регистрации пользователя."""
+
     username: str
     email: str
     password: str
@@ -26,6 +27,7 @@ class UserRegisterDTO:
 @dataclass
 class UserLoginDTO:
     """DTO для входа пользователя."""
+
     username_or_email: str
     password: str
 
@@ -33,6 +35,7 @@ class UserLoginDTO:
 @dataclass
 class TokenDTO:
     """DTO для токенов."""
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -41,6 +44,7 @@ class TokenDTO:
 @dataclass
 class TelegramUserDTO:
     """DTO для Telegram пользователя."""
+
     id: str
     username: Optional[str] = None
     first_name: Optional[str] = None
@@ -52,9 +56,11 @@ class TelegramUserDTO:
 # User DTOs
 # =============================================================================
 
+
 @dataclass
 class UserProfileDTO:
     """DTO профиля пользователя."""
+
     id: int
     username: str
     email: str
@@ -72,9 +78,11 @@ class UserProfileDTO:
 # Marketplace DTOs
 # =============================================================================
 
+
 @dataclass
 class OfferDTO:
     """DTO предложения marketplace."""
+
     type: str  # "sell" или "buy"
     item_id: int
     item_name: str
@@ -90,6 +98,7 @@ class OfferDTO:
 @dataclass
 class LavkaSummaryDTO:
     """DTO краткой информации о лавке."""
+
     lavka_uid: str
     username: str
     server_id: int
@@ -101,6 +110,7 @@ class LavkaSummaryDTO:
 @dataclass
 class LavkaItemDTO:
     """DTO предмета в лавке."""
+
     item_id: int
     item_name: str
     price: float
@@ -111,6 +121,7 @@ class LavkaItemDTO:
 @dataclass
 class LavkaDetailDTO:
     """DTO детальной информации о лавке."""
+
     lavka_uid: str
     username: str
     server_id: int
@@ -125,9 +136,11 @@ class LavkaDetailDTO:
 # Config Generator DTOs
 # =============================================================================
 
+
 @dataclass
 class ConfigGenerateRequestDTO:
     """DTO запроса генерации конфига."""
+
     server_id: int
     mode: str  # "SELL" или "BUY"
     percentage: float
@@ -138,6 +151,7 @@ class ConfigGenerateRequestDTO:
 @dataclass
 class ConfigItemDTO:
     """DTO элемента конфига."""
+
     price: str
     name: str
     maximum: bool = True
@@ -155,6 +169,7 @@ class ConfigItemDTO:
 @dataclass
 class ConfigStatsDTO:
     """DTO статистики конфига."""
+
     total_items: int
     items_with_history: int
     avg_confidence: float
@@ -164,6 +179,7 @@ class ConfigStatsDTO:
 @dataclass
 class ConfigGenerateResponseDTO:
     """DTO ответа генерации конфига."""
+
     config: List[ConfigItemDTO]
     total_items: int
     server_name: str
@@ -174,6 +190,7 @@ class ConfigGenerateResponseDTO:
 @dataclass
 class ConfigHistoryDTO:
     """DTO истории конфигов."""
+
     id: int
     server_name: str
     server_id: int
@@ -188,9 +205,11 @@ class ConfigHistoryDTO:
 # Admin DTOs
 # =============================================================================
 
+
 @dataclass
 class AdminStatsSummaryDTO:
     """DTO сводной статистики."""
+
     total_users: int
     total_configs: int
     dau: int
@@ -201,6 +220,7 @@ class AdminStatsSummaryDTO:
 @dataclass
 class AdminStatsChartDataDTO:
     """DTO данных для графика."""
+
     date: str
     registrations: int
     configs_generated: int
@@ -209,6 +229,7 @@ class AdminStatsChartDataDTO:
 @dataclass
 class GlobalSettingDTO:
     """DTO глобальной настройки."""
+
     key: str
     value: dict
     updated_at: datetime

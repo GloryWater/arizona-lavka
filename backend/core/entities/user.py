@@ -31,6 +31,7 @@ class UserEntity:
         created_at: Дата создания
         updated_at: Дата обновления
     """
+
     id: Optional[int] = None
     username: str = ""
     email: str = ""

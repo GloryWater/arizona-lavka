@@ -31,6 +31,7 @@ class DomainException(Exception):
 # Domain Business Rule Violations
 # =============================================================================
 
+
 class EntityNotFoundError(DomainException):
     """
     Сущность не найдена (404).

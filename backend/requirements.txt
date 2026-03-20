@@ -23,6 +23,30 @@ httpx==0.26.0
 
 # Caching
 cachetools==5.3.3
+redis==5.2.0
 
-# Utils
-python-dotenv==1.0.1
+# Security
+cryptography==42.0.0
+slowapi==0.1.9
+secure==0.3.0
+
+# Email Validation
+email-validator==2.1.0
+
+# DNS validation for email
+dnspython==2.5.0
+
+# Email Sending (Gmail SMTP)
+fastapi-mail==1.4.1
+
+# Task Scheduling (for cleanup jobs)
+apscheduler==3.10.4
+
+# Monitoring & Observability
+prometheus-client==0.20.0
+
+# Code Quality
+black==24.10.0
+flake8==7.1.1
+mypy==1.13.0
+isort==5.13.2

@@ -1,0 +1,206 @@
+# =============================================================================
+# ARIZONA LAVKA MARKETPLACE - DOCKER COMPOSE (SECURE VERSION)
+# =============================================================================
+# Usage:
+#   docker compose up -d              # Start all services
+#   docker compose down               # Stop all services
+#   docker compose logs -f            # View logs
+#   docker compose ps                 # Check status
+#
+# Ports:
+#   Frontend:  http://localhost:8080 (or https://lavka.glorysyntax.live:8080)
+#   Backend:   http://localhost:8000
+#   Database:  localhost:7432
+# =============================================================================
+
+services:
+  # =============================================================================
+  # PostgreSQL Database
+  # =============================================================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: arizonalavka-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER_FILE: /run/secrets/db_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB_FILE: /run/secrets/db_name
+    secrets:
+      - db_user
+      - db_password
+      - db_name
+    ports:
+      - "127.0.0.1:7432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$(cat /run/secrets/db_user) -d $$(cat /run/secrets/db_name)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # =============================================================================
+  # Backend API (FastAPI)
+  # =============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: arizonalavka-backend
+    restart: unless-stopped
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8000
+      --proxy-headers
+      --forwarded-allow-ips="*"
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Database - Using secrets
+      POSTGRES_USER_FILE: /run/secrets/db_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB_FILE: /run/secrets/db_name
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      # JWT - Using secrets
+      JWT_SECRET_KEY_FILE: /run/secrets/jwt_secret
+      # App settings
+      PRODUCTION: "true"
+      DEBUG: "false"
+      HOST: 0.0.0.0
+      PORT: 8000
+      # CORS
+      CORS_ORIGINS: https://lavka.glorysyntax.live,http://lavka.glorysyntax.live,http://localhost:8080
+      # Security
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      MAX_LOGIN_ATTEMPTS: "5"
+      LOCKOUT_DURATION_MINUTES: "15"
+      # External API
+      EXTERNAL_API_URL: https://api.arz.market/api/getSelectedMarketplace/-1
+      API_TIMEOUT_SECONDS: "30"
+      # Cache
+      CACHE_TTL_SECONDS: "30"
+      CACHE_MAX_SIZE: "100"
+      # Rate limiting
+      RATE_LIMIT_PER_MINUTE: "120"
+      # Turnstile - Using secrets
+      CLOUDFLARE_TURNSTILE_SITE_KEY_FILE: /run/secrets/turnstile_site_key
+      CLOUDFLARE_TURNSTILE_SECRET_KEY_FILE: /run/secrets/turnstile_secret_key
+      # Email - Using secrets
+      GMAIL_USERNAME_FILE: /run/secrets/gmail_username
+      GMAIL_APP_PASSWORD_FILE: /run/secrets/gmail_app_password
+      FRONTEND_URL: http://localhost:8080
+      # Email verification
+      EMAIL_VERIFICATION_EXPIRY_HOURS: "24"
+      EMAIL_VERIFICATION_CODE_LENGTH: "6"
+      EMAIL_VERIFICATION_MAX_ATTEMPTS: "3"
+      EMAIL_VERIFICATION_COOLDOWN_MINUTES: "5"
+    secrets:
+      - db_user
+      - db_password
+      - db_name
+      - jwt_secret
+      - turnstile_site_key
+      - turnstile_secret_key
+      - gmail_username
+      - gmail_app_password
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # Redis (Caching and Sessions)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: arizonalavka-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # =============================================================================
+  # Frontend (Nginx)
+  # =============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: arizonalavka-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      VITE_API_URL: https://lavka.glorysyntax.live/api
+      VITE_CLOUDFLARE_TURNSTILE_SITE_KEY_FILE: /run/secrets/turnstile_site_key
+      VITE_APP_NAME: Arizona Lavka Marketplace
+      VITE_APP_VERSION: 5.0.0
+    secrets:
+      - turnstile_site_key
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# =============================================================================
+# Secrets
+# =============================================================================
+# These secrets should be stored in ./secrets/ directory or Docker swarm secrets
+secrets:
+  db_user:
+    file: ./secrets/db_user.txt
+  db_password:
+    file: ./secrets/db_password.txt
+  db_name:
+    file: ./secrets/db_name.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  turnstile_site_key:
+    file: ./secrets/turnstile_site_key.txt
+  turnstile_secret_key:
+    file: ./secrets/turnstile_secret_key.txt
+  gmail_username:
+    file: ./secrets/gmail_username.txt
+  gmail_app_password:
+    file: ./secrets/gmail_app_password.txt
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: arizonalavka_default
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

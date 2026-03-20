@@ -8,10 +8,12 @@
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from infrastructure.database.models import GlobalSetting
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 def _utcnow() -> datetime:
     """Возвращает текущее UTC время (timezone-aware)."""
     return datetime.now(timezone.utc)
+
 
 # Кэш для режима обслуживания
 _maintenance_cache: Optional[bool] = None
@@ -29,10 +32,10 @@ _CACHE_TTL_SECONDS = 30  # Кэшируем на 30 секунд
 class MaintenanceService:
     """
     Сервис для управления режимом обслуживания.
-    
+
     Режим обслуживания контролируется через глобальную настройку
     'maintenance_mode' в таблице global_settings.
-    
+
     Формат настройки:
     {
         "enabled": true/false,
@@ -41,34 +44,37 @@ class MaintenanceService:
         "estimated_end": "2026-02-26T12:00:00Z"
     }
     """
-    
+
     @classmethod
     async def is_maintenance_mode(cls) -> bool:
         """
         Проверяет, включён ли режим обслуживания.
-        
+
         Returns:
             bool: True если режим обслуживания активен
         """
         global _maintenance_cache, _maintenance_cache_timestamp
-        
+
         current_time = time.time()
-        
+
         # Проверка кэша
-        if (_maintenance_cache is not None and 
-            (current_time - _maintenance_cache_timestamp) < _CACHE_TTL_SECONDS):
+        if (
+            _maintenance_cache is not None
+            and (current_time - _maintenance_cache_timestamp) < _CACHE_TTL_SECONDS
+        ):
             return _maintenance_cache
-        
+
         # Получаем настройку из БД
         try:
-            from database import GlobalSetting
-            from dependencies import get_db_manager
             from fastapi import Request
-            
+
+            from dependencies import get_db_manager
+            from infrastructure.database.models import GlobalSetting
+
             # Для использования вне запросов нужен отдельный подход
             # Используем lazy import чтобы избежать circular dependency
             setting = await cls._get_maintenance_setting()
-            
+
             if setting and isinstance(setting.value, dict):
                 is_maintenance = setting.value.get("enabled", False)
                 _maintenance_cache = is_maintenance
@@ -76,12 +82,12 @@ class MaintenanceService:
                 return is_maintenance
         except Exception as e:
             logger.warning(f"Ошибка проверки maintenance mode: {e}")
-        
+
         # По умолчанию режим выключен
         _maintenance_cache = False
         _maintenance_cache_timestamp = current_time
         return False
-    
+
     @classmethod
     async def _get_maintenance_setting(cls) -> Optional["GlobalSetting"]:
         """
@@ -90,8 +96,8 @@ class MaintenanceService:
         Returns:
             GlobalSetting или None
         """
-        from database import GlobalSetting, DatabaseManager
         from config import get_settings
+        from infrastructure.database.models import DatabaseManager, GlobalSetting
 
         settings = get_settings()
 
@@ -111,13 +117,13 @@ class MaintenanceService:
         finally:
             # Гарантированное закрытие соединения даже при ошибке инициализации
             await db_manager.close()
-    
+
     @classmethod
     async def enable_maintenance(
         cls,
         session: AsyncSession,
         message: str = "Технические работы",
-        estimated_end: Optional[str] = None
+        estimated_end: Optional[str] = None,
     ) -> bool:
         """
         Включает режим обслуживания.
@@ -130,7 +136,7 @@ class MaintenanceService:
         Returns:
             bool: True если успешно
         """
-        from database import GlobalSetting
+        from infrastructure.database.models import GlobalSetting
 
         global _maintenance_cache, _maintenance_cache_timestamp
 
@@ -171,7 +177,7 @@ class MaintenanceService:
             await session.rollback()
             logger.error(f"Ошибка включения maintenance mode: {e}")
             return False
-    
+
     @classmethod
     async def disable_maintenance(cls, session: AsyncSession) -> bool:
         """
@@ -183,7 +189,7 @@ class MaintenanceService:
         Returns:
             bool: True если успешно
         """
-        from database import GlobalSetting
+        from infrastructure.database.models import GlobalSetting
 
         global _maintenance_cache, _maintenance_cache_timestamp
 
@@ -202,7 +208,7 @@ class MaintenanceService:
                         "started_at": old_value.get("started_at"),
                         "ended_at": datetime.now(timezone.utc).isoformat(),
                         "message": old_value.get("message"),
-                    }
+                    },
                 }
                 setting.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
                 await session.commit()
@@ -228,39 +234,41 @@ class MaintenanceService:
             await session.rollback()
             logger.error(f"Ошибка выключения maintenance mode: {e}")
             return False
-    
+
     @classmethod
-    async def get_maintenance_info(cls, session: AsyncSession) -> Optional[Dict[str, Any]]:
+    async def get_maintenance_info(
+        cls, session: AsyncSession
+    ) -> Optional[Dict[str, Any]]:
         """
         Получает информацию о режиме обслуживания.
-        
+
         Args:
             session: Сессия БД
-            
+
         Returns:
             Dict с информацией о maintenance или None
         """
-        from database import GlobalSetting
-        
+        from infrastructure.database.models import GlobalSetting
+
         try:
             result = await session.execute(
                 select(GlobalSetting).where(GlobalSetting.key == "maintenance_mode")
             )
             setting = result.scalar_one_or_none()
-            
+
             if setting:
                 return setting.value
             return None
-            
+
         except Exception as e:
             logger.error(f"Ошибка получения maintenance info: {e}")
             return None
-    
+
     @classmethod
     def invalidate_cache(cls) -> None:
         """
         Инвалидирует кэш режима обслуживания.
-        
+
         Используйте после ручного изменения настройки в БД.
         """
         global _maintenance_cache, _maintenance_cache_timestamp

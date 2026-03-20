@@ -12,6 +12,7 @@ class PriceAlertEntity:
     """
     Domain сущность уведомления о цене.
     """
+
     id: Optional[int] = None
     user_id: int = 0
     item_id: int = 0

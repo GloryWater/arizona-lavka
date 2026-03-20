@@ -6,24 +6,26 @@
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
-from database import User
-from dependencies import get_db_session, get_current_user_required
-from models import TokenResponse, UserResponse, TelegramLoginRequest
+from dependencies import get_current_user_required, get_db_session
+from infrastructure.database.models import User
+from models import TelegramLoginRequest, TokenResponse, UserResponse
 from services.auth_service import AuthService
-from services.telegram_auth_service import validate_telegram_init_data, parse_telegram_user
+from services.telegram_auth_service import (
+    parse_telegram_user,
+    validate_telegram_init_data,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def get_auth_service(
-    session: AsyncSession = Depends(get_db_session)
-) -> AuthService:
+def get_auth_service(session: AsyncSession = Depends(get_db_session)) -> AuthService:
     """Создаёт экземпляр AuthService."""
     return AuthService(session, get_settings())
 
@@ -47,20 +49,19 @@ async def telegram_login(
         logger.error("TELEGRAM_BOT_TOKEN не настроен")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Telegram интеграция не настроена"
+            detail="Telegram интеграция не настроена",
         )
 
     # Валидация initData
     telegram_user = validate_telegram_init_data(
-        data.init_data,
-        settings.TELEGRAM_BOT_TOKEN
+        data.init_data, settings.TELEGRAM_BOT_TOKEN
     )
 
     if not telegram_user:
         logger.warning("Невалидный initData от Telegram")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Невалидные данные Telegram"
+            detail="Невалидные данные Telegram",
         )
 
     try:
@@ -80,7 +81,7 @@ async def telegram_login(
         logger.error(f"Ошибка Telegram авторизации: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка авторизации"
+            detail="Ошибка авторизации",
         )
 
 

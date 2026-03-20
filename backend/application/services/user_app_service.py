@@ -3,18 +3,18 @@ User application service.
 """
 
 import logging
-from typing import Optional, List
+from typing import List, Optional
 
+from application.dtos import UserProfileDTO
 from application.interfaces.repositories import (
-    IUserRepository,
     IConfigHistoryRepository,
     IFavoriteItemRepository,
     IPriceAlertRepository,
+    IUserRepository,
 )
-from application.dtos import UserProfileDTO
-from core.entities.user import UserEntity
 from core.entities.favorite import FavoriteItemEntity
 from core.entities.price_alert import PriceAlertEntity
+from core.entities.user import UserEntity
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,9 @@ class UserAppService:
         Returns:
             Список FavoriteItemEntity
         """
-        return await self.favorite_item_repository.get_by_user_id(user_id, is_active=True)
+        return await self.favorite_item_repository.get_by_user_id(
+            user_id, is_active=True
+        )
 
     async def add_favorite(
         self,

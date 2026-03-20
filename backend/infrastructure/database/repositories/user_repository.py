@@ -2,14 +2,14 @@
 User repository implementation.
 """
 
-from typing import Optional, List
 from datetime import datetime, timezone
+from typing import List, Optional
 
-from sqlalchemy import select, func, and_, or_, desc
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.entities.user import UserEntity
 from application.interfaces.repositories import IUserRepository
+from core.entities.user import UserEntity
 from infrastructure.database.models import User
 
 
@@ -85,9 +85,7 @@ class UserRepository(IUserRepository):
         return self._to_entity(user) if user else None
 
     async def get_by_email(self, email: str) -> Optional[UserEntity]:
-        result = await self.session.execute(
-            select(User).where(User.email == email)
-        )
+        result = await self.session.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         return self._to_entity(user) if user else None
 
@@ -98,7 +96,9 @@ class UserRepository(IUserRepository):
         user = result.scalar_one_or_none()
         return self._to_entity(user) if user else None
 
-    async def get_by_username_or_email(self, username_or_email: str) -> Optional[UserEntity]:
+    async def get_by_username_or_email(
+        self, username_or_email: str
+    ) -> Optional[UserEntity]:
         result = await self.session.execute(
             select(User).where(
                 or_(
@@ -166,6 +166,7 @@ class UserRepository(IUserRepository):
         elif sort_by == "configs_count":
             # Сортировка по количеству конфигов через подзапрос
             from infrastructure.database.models import ConfigHistory
+
             configs_count_subquery = (
                 select(func.count(ConfigHistory.id))
                 .where(ConfigHistory.user_id == User.id)

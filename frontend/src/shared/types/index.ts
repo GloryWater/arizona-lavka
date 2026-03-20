@@ -48,6 +48,7 @@ export interface RegisterData {
   password: string;
   first_name?: string;
   last_name?: string;
+  turnstile_token: string;  // Cloudflare Turnstile verification token
 }
 
 export interface LoginData {

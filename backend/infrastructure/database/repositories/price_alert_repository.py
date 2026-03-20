@@ -2,13 +2,13 @@
 PriceAlert repository implementation.
 """
 
-from typing import Optional, List
+from typing import List, Optional
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.entities.price_alert import PriceAlertEntity
 from application.interfaces.repositories import IPriceAlertRepository
+from core.entities.price_alert import PriceAlertEntity
 from infrastructure.database.models import PriceAlert
 
 
@@ -83,3 +83,21 @@ class PriceAlertRepository(IPriceAlertRepository):
         await self.session.delete(alert)
         await self.session.commit()
         return True
+
+    async def update(self, alert: PriceAlertEntity) -> PriceAlertEntity:
+        """Обновляет уведомление о цене."""
+        db_alert = await self.session.get(PriceAlert, alert.id)
+        if not db_alert:
+            raise ValueError(f"Price alert with id {alert.id} not found")
+
+        # Обновляем поля
+        for field, value in vars(alert).items():
+            if hasattr(db_alert, field) and field not in [
+                "id",
+                "created_at",
+            ]:  # Не обновляем id и created_at
+                setattr(db_alert, field, value)
+
+        await self.session.flush()
+        await self.session.refresh(db_alert)
+        return self._to_entity(db_alert)

@@ -4,7 +4,7 @@ ConfigHistory domain entity.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -26,6 +26,7 @@ class ConfigHistoryEntity:
         download_count: Количество скачиваний
         created_at: Дата создания
     """
+
     id: Optional[int] = None
     user_id: int = 0
     server_id: int = 0

@@ -1,0 +1,98 @@
+# =============================================================================
+# Arizona Lavka Marketplace - Prometheus Configuration
+# =============================================================================
+# Prometheus конфигурация для сбора метрик с Arizona Lavka Marketplace
+# =============================================================================
+
+global:
+  # Как часто собирать метрики
+  scrape_interval: 15s
+  
+  # Как часто оценивать правила
+  evaluation_interval: 15s
+  
+  # Внешняя метка для идентификации источника
+  external_labels:
+    monitor: 'arizonalavka-monitor'
+    environment: 'production'
+
+# Правила для alertmanager (опционально)
+rule_files:
+  # - "alerts/*.yml"
+
+# Настройки для alertmanager (опционально)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Цели для сбора метрик (scrape targets)
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # Prometheus само-мониторинг
+  # ---------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # ---------------------------------------------------------------------------
+  # Arizona Lavka Backend API
+  # ---------------------------------------------------------------------------
+  - job_name: 'arizonalavka-backend'
+    
+    # Путь для сбора метрик
+    metrics_path: '/metrics'
+    
+    # Схема (http/https)
+    scheme: http
+    
+    # Частота сбора для этого job (переопределяет global)
+    scrape_interval: 10s
+    
+    # Таймаут запроса
+    scrape_timeout: 5s
+    
+    # Статические цели
+    static_configs:
+      - targets: ['backend:8000']
+        labels:
+          service: 'backend'
+          application: 'arizonalavka'
+          team: 'backend'
+    
+    # Перезапись меток (relabel configs)
+    relabel_configs:
+      # Добавляем метку instance из адреса
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '${1}'
+      
+      # Добавляем метку port
+      - source_labels: [__address__]
+        target_label: __param_target
+        regex: '(.+)'
+        replacement: '${1}'
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database (опционально, требует postgres-exporter)
+  # ---------------------------------------------------------------------------
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          database: 'arizonalavka'
+
+  # ---------------------------------------------------------------------------
+  # Node Exporter - метрики хоста (опционально)
+  # ---------------------------------------------------------------------------
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+          environment: 'docker'

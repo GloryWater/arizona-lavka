@@ -1,0 +1,299 @@
+{
+    "Id": "5fd99b95da3abb40e7cf89128c68b6fb47113ad3dfe31d8077f533bf84d6174a",
+    "Created": "2026-03-15T19:26:26.90605854Z",
+    "Path": "uvicorn",
+    "Args": [
+        "main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--proxy-headers",
+        "--forwarded-allow-ips=*"
+    ],
+    "State": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 3,
+        "Error": "",
+        "StartedAt": "2026-03-15T19:32:23.089408818Z",
+        "FinishedAt": "2026-03-15T19:32:27.901611141Z",
+        "Health": {
+            "Status": "unhealthy",
+            "FailingStreak": 0,
+            "Log": []
+        }
+    },
+    "Image": "sha256:43cac426abbb009f40ee65cb1c05a01e280794cf419e1f27be76b888edb62fc1",
+    "ResolvConfPath": "/var/lib/docker/containers/5fd99b95da3abb40e7cf89128c68b6fb47113ad3dfe31d8077f533bf84d6174a/resolv.conf",
+    "HostnamePath": "/var/lib/docker/containers/5fd99b95da3abb40e7cf89128c68b6fb47113ad3dfe31d8077f533bf84d6174a/hostname",
+    "HostsPath": "/var/lib/docker/containers/5fd99b95da3abb40e7cf89128c68b6fb47113ad3dfe31d8077f533bf84d6174a/hosts",
+    "LogPath": "/var/lib/docker/containers/5fd99b95da3abb40e7cf89128c68b6fb47113ad3dfe31d8077f533bf84d6174a/5fd99b95da3abb40e7cf89128c68b6fb47113ad3dfe31d8077f533bf84d6174a-json.log",
+    "Name": "/arizonalavka-backend",
+    "RestartCount": 14,
+    "Driver": "overlayfs",
+    "Platform": "linux",
+    "MountLabel": "",
+    "ProcessLabel": "",
+    "AppArmorProfile": "docker-default",
+    "ExecIDs": null,
+    "HostConfig": {
+        "Binds": [
+            "/root/arizonalavka/data:/app/data:ro"
+        ],
+        "ContainerIDFile": "",
+        "LogConfig": {
+            "Type": "json-file",
+            "Config": {}
+        },
+        "NetworkMode": "arizonalavka_default",
+        "PortBindings": {
+            "8000/tcp": [
+                {
+                    "HostIp": "127.0.0.1",
+                    "HostPort": "8000"
+                }
+            ]
+        },
+        "RestartPolicy": {
+            "Name": "unless-stopped",
+            "MaximumRetryCount": 0
+        },
+        "AutoRemove": false,
+        "VolumeDriver": "",
+        "VolumesFrom": null,
+        "ConsoleSize": [
+            0,
+            0
+        ],
+        "CapAdd": null,
+        "CapDrop": null,
+        "CgroupnsMode": "private",
+        "Dns": null,
+        "DnsOptions": null,
+        "DnsSearch": null,
+        "ExtraHosts": [],
+        "GroupAdd": null,
+        "IpcMode": "private",
+        "Cgroup": "",
+        "Links": null,
+        "OomScoreAdj": 0,
+        "PidMode": "",
+        "Privileged": false,
+        "PublishAllPorts": false,
+        "ReadonlyRootfs": false,
+        "SecurityOpt": null,
+        "UTSMode": "",
+        "UsernsMode": "",
+        "ShmSize": 67108864,
+        "Runtime": "runc",
+        "Isolation": "",
+        "CpuShares": 0,
+        "Memory": 0,
+        "NanoCpus": 0,
+        "CgroupParent": "",
+        "BlkioWeight": 0,
+        "BlkioWeightDevice": null,
+        "BlkioDeviceReadBps": null,
+        "BlkioDeviceWriteBps": null,
+        "BlkioDeviceReadIOps": null,
+        "BlkioDeviceWriteIOps": null,
+        "CpuPeriod": 0,
+        "CpuQuota": 0,
+        "CpuRealtimePeriod": 0,
+        "CpuRealtimeRuntime": 0,
+        "CpusetCpus": "",
+        "CpusetMems": "",
+        "Devices": null,
+        "DeviceCgroupRules": null,
+        "DeviceRequests": null,
+        "MemoryReservation": 0,
+        "MemorySwap": 0,
+        "MemorySwappiness": null,
+        "OomKillDisable": null,
+        "PidsLimit": null,
+        "Ulimits": null,
+        "CpuCount": 0,
+        "CpuPercent": 0,
+        "IOMaximumIOps": 0,
+        "IOMaximumBandwidth": 0,
+        "MaskedPaths": [
+            "/proc/acpi",
+            "/proc/asound",
+            "/proc/interrupts",
+            "/proc/kcore",
+            "/proc/keys",
+            "/proc/latency_stats",
+            "/proc/sched_debug",
+            "/proc/scsi",
+            "/proc/timer_list",
+            "/proc/timer_stats",
+            "/sys/devices/virtual/powercap",
+            "/sys/firmware"
+        ],
+        "ReadonlyPaths": [
+            "/proc/bus",
+            "/proc/fs",
+            "/proc/irq",
+            "/proc/sys",
+            "/proc/sysrq-trigger"
+        ]
+    },
+    "Storage": {
+        "RootFS": {
+            "Snapshot": {
+                "Name": "overlayfs"
+            }
+        }
+    },
+    "Mounts": [
+        {
+            "Type": "bind",
+            "Source": "/root/arizonalavka/data",
+            "Destination": "/app/data",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+        }
+    ],
+    "Config": {
+        "Hostname": "5fd99b95da3a",
+        "Domainname": "",
+        "User": "appuser",
+        "AttachStdin": false,
+        "AttachStdout": true,
+        "AttachStderr": true,
+        "ExposedPorts": {
+            "8000/tcp": {}
+        },
+        "Tty": false,
+        "OpenStdin": false,
+        "StdinOnce": false,
+        "Env": [
+            "RATE_LIMIT_PER_MINUTE=120",
+            "EMAIL_VERIFICATION_COOLDOWN_MINUTES=5",
+            "CACHE_TTL_SECONDS=30",
+            "FRONTEND_URL=http://localhost:8080",
+            "HOST=0.0.0.0",
+            "CLOUDFLARE_TURNSTILE_SECRET_KEY=0x4AAAAAACrUZuyg5ahuUkWhwFdDr4wko78",
+            "CLOUDFLARE_TURNSTILE_SITE_KEY=0x4AAAAAACrUZmGD4_pjJq_a",
+            "CACHE_MAX_SIZE=100",
+            "EMAIL_VERIFICATION_MAX_ATTEMPTS=3",
+            "ACCESS_TOKEN_EXPIRE_MINUTES=30",
+            "POSTGRES_DB=arizonalavka",
+            "GMAIL_APP_PASSWORD=nykgxzfthbhdqxhr",
+            "POSTGRES_HOST=postgres",
+            "PRODUCTION=true",
+            "JWT_SECRET_KEY=61b8d69611aa704f6fb0e19e9e2930aaa8cf98a4788712c6429549314bb39ff5",
+            "REFRESH_TOKEN_EXPIRE_DAYS=7",
+            "PORT=8000",
+            "DEBUG=false",
+            "EMAIL_VERIFICATION_CODE_LENGTH=6",
+            "POSTGRES_PASSWORD=srGH8aQ+RVaFqM9XB@xfd",
+            "POSTGRES_PORT=7432",
+            "CORS_ORIGINS=https://lavka.glorysyntax.live,http://lavka.glorysyntax.live,http://localhost:8080",
+            "MAX_LOGIN_ATTEMPTS=5",
+            "POSTGRES_USER=arizonalavka",
+            "LOCKOUT_DURATION_MINUTES=15",
+            "EXTERNAL_API_URL=https://api.arz.market/api/getSelectedMarketplace/-1",
+            "API_TIMEOUT_SECONDS=30",
+            "GMAIL_USERNAME=arz.lavka@gmail.com",
+            "EMAIL_VERIFICATION_EXPIRY_HOURS=24",
+            "PATH=/home/appuser/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "LANG=C.UTF-8",
+            "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+            "PYTHON_VERSION=3.12.13",
+            "PYTHON_SHA256=c08bc65a81971c1dd5783182826503369466c7e67374d1646519adf05207b684",
+            "PYTHONDONTWRITEBYTECODE=1",
+            "PYTHONUNBUFFERED=1",
+            "PYTHONFAULTHANDLER=1",
+            "APP_HOME=/app"
+        ],
+        "Cmd": [
+            "uvicorn",
+            "main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8000",
+            "--proxy-headers",
+            "--forwarded-allow-ips=*"
+        ],
+        "Healthcheck": {
+            "Test": [
+                "CMD",
+                "curl",
+                "-f",
+                "http://localhost:8000/health"
+            ],
+            "Interval": 30000000000,
+            "Timeout": 10000000000,
+            "StartPeriod": 40000000000,
+            "Retries": 3
+        },
+        "Image": "arizonalavka-backend",
+        "Volumes": null,
+        "WorkingDir": "/app",
+        "Entrypoint": null,
+        "Labels": {
+            "com.docker.compose.config-hash": "48c9f927784641bd1ac1d5542a653271fbe39567ce6b60c557808f38ac612272",
+            "com.docker.compose.container-number": "1",
+            "com.docker.compose.depends_on": "postgres:service_healthy:false",
+            "com.docker.compose.image": "sha256:43cac426abbb009f40ee65cb1c05a01e280794cf419e1f27be76b888edb62fc1",
+            "com.docker.compose.oneoff": "False",
+            "com.docker.compose.project": "arizonalavka",
+            "com.docker.compose.project.config_files": "/root/arizonalavka/docker-compose.yml",
+            "com.docker.compose.project.working_dir": "/root/arizonalavka",
+            "com.docker.compose.service": "backend",
+            "com.docker.compose.version": "5.1.0",
+            "description": "Arizona Lavka Marketplace Backend API - Production",
+            "maintainer": "Arizona Lavka Team",
+            "version": "3.2.0"
+        }
+    },
+    "NetworkSettings": {
+        "SandboxID": "",
+        "SandboxKey": "",
+        "Ports": {},
+        "Networks": {
+            "arizonalavka_default": {
+                "IPAMConfig": null,
+                "Links": null,
+                "Aliases": [
+                    "arizonalavka-backend",
+                    "backend"
+                ],
+                "DriverOpts": null,
+                "GwPriority": 0,
+                "NetworkID": "bc99ecf7769e2cebad07cc9719975878dea83114a8a58a06d31ed18713d9e7ff",
+                "EndpointID": "",
+                "Gateway": "",
+                "IPAddress": "",
+                "MacAddress": "",
+                "IPPrefixLen": 0,
+                "IPv6Gateway": "",
+                "GlobalIPv6Address": "",
+                "GlobalIPv6PrefixLen": 0,
+                "DNSNames": [
+                    "arizonalavka-backend",
+                    "backend",
+                    "5fd99b95da3a"
+                ]
+            }
+        }
+    },
+    "ImageManifestDescriptor": {
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "digest": "sha256:562eeac14f468a71f2fd1ea89d2e4f873ed8bfdfeb37ad68c1220148c2622aae",
+        "size": 2759,
+        "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+        }
+    }
+}

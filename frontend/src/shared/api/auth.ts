@@ -70,4 +70,11 @@ export const authApi = {
       new_password: newPassword,
     });
   },
+
+  /**
+   * Подтверждение email токеном (POST версия для frontend)
+   */
+  async verifyEmailByToken(data: { token: string }): Promise<{ message: string; is_email_verified: boolean }> {
+    return apiClient.post('/auth/verify-email-token', data);
+  },
 };

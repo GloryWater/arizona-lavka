@@ -8,47 +8,65 @@
 import json
 import logging
 import random
-from typing import Optional, List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Query, Request
-from sqlalchemy import select, desc
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import User, ConfigHistory
-from dependencies import get_db_session, get_db_session_no_commit, get_current_user_required, get_config_generator_service
-from models import ConfigGenerateRequest, ConfigItemResponse, ConfigHistoryResponse, ConfigMode
-from services.config_generator_service import ConfigGeneratorService
-from services.marketplace_service import MarketplaceService
-from services.item_categories import get_all_categories
-from services.audit_log_service import AuditLogService
 from config import get_server_name
+from dependencies import (
+    get_config_generator_service,
+    get_current_user_required,
+    get_db_session,
+    get_db_session_no_commit,
+)
+from infrastructure.database.models import ConfigHistory, User
+from models import (
+    ConfigGenerateRequest,
+    ConfigHistoryResponse,
+    ConfigItemResponse,
+    ConfigMode,
+)
+
+from infrastructure.cache.application_cache import (
+    get_application_cache,
+    cache_result,
+    invalidate_cache,
+    ConfigCache
+)
+from services.audit_log_service import AuditLogService
+from services.config_generator_service import ConfigGeneratorService
+from services.item_categories import get_all_categories
+from services.marketplace_service import MarketplaceService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 def get_audit_service(
-    session: AsyncSession = Depends(get_db_session_no_commit)
+    session: AsyncSession = Depends(get_db_session_no_commit),
 ) -> AuditLogService:
     """Создаёт экземпляр AuditLogService."""
     return AuditLogService(session)
 
 
 @router.post("/generate")
+@cache_result(ttl=600, key_prefix="api_config_gen", entity_type="config")  # Cache for 10 minutes
 async def generate_config(
     request: ConfigGenerateRequest,
     current_user: User = Depends(get_current_user_required),
     session: AsyncSession = Depends(get_db_session_no_commit),
     config_generator: ConfigGeneratorService = Depends(get_config_generator_service),
-    marketplace_service: MarketplaceService = Depends(lambda: None),  # Получим из config_generator
 ):
     """Сгенерировать торговый конфиг."""
     # Валидация server_id перед генерацией
     from config import SERVER_NAMES
+
     if request.server_id not in SERVER_NAMES:
         raise HTTPException(
             status_code=400,
-            detail=f"Неверный server_id: {request.server_id}. Допустимые значения: 0-32"
+            detail=f"Неверный server_id: {request.server_id}. Допустимые значения: 0-32",
         )
 
     # Получаем данные из API
@@ -56,6 +74,11 @@ async def generate_config(
 
     if not users_data:
         raise HTTPException(status_code=503, detail="Marketplace service unavailable")
+
+    # Логирование для отладки
+    logger.info(f"Получено {len(users_data)} пользовательских записей для генерации конфига")
+    if users_data:
+        logger.info(f"Пример данных: {str(users_data[0])[:200]}...")
 
     # Генерируем конфиг
     try:
@@ -94,7 +117,9 @@ async def generate_config(
             session.add(config_history)
             # Явный commit для атомарности операции
             await session.commit()
-            logger.info(f"Конфиг сохранён в историю: user_id={current_user.id}, server_id={request.server_id}")
+            logger.info(
+                f"Конфиг сохранён в историю: user_id={current_user.id}, server_id={request.server_id}"
+            )
         except Exception as e:
             # Откат транзакции при ошибке сохранения
             await session.rollback()
@@ -161,7 +186,9 @@ async def generate_and_download_config(
             session.add(config_history)
             # Явный commit для атомарности операции
             await session.commit()
-            logger.info(f"Конфиг сохранён в историю (download): user_id={current_user.id}, server_id={request.server_id}")
+            logger.info(
+                f"Конфиг сохранён в историю (download): user_id={current_user.id}, server_id={request.server_id}"
+            )
         except Exception as e:
             # Откат транзакции при ошибке сохранения
             await session.rollback()
@@ -203,7 +230,9 @@ async def generate_and_download_config(
 
     json_str = json.dumps(bot_config, ensure_ascii=False, indent=2)
 
-    logger.info(f"Генерация JSON конфига: {len(config_items)} предметов, размер JSON: {len(json_str)} байт")
+    logger.info(
+        f"Генерация JSON конфига: {len(config_items)} предметов, размер JSON: {len(json_str)} байт"
+    )
 
     # Формат имени: action_server_numbers.json
     server_name_file = get_server_name(request.server_id).lower().replace(" ", "_")
@@ -223,6 +252,7 @@ async def generate_and_download_config(
 
 
 @router.get("/history")
+@cache_result(ttl=300, key_prefix="config_history", entity_type="user")  # Cache for 5 minutes
 async def get_config_history(
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user_required),
@@ -262,18 +292,18 @@ async def get_config_detail(
 ):
     """Получить детали конфига и скачать."""
     config = await session.get(ConfigHistory, config_id)
-    
+
     if not config:
         raise HTTPException(status_code=404, detail="Конфиг не найден")
-    
+
     # Проверка принадлежности
     if config.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
-    
+
     # Увеличиваем счётчик скачиваний
     config.download_count += 1
     await session.commit()
-    
+
     # Генерируем JSON
     json_str = json.dumps(config.config_data, ensure_ascii=False, indent=4)
 
@@ -405,12 +435,14 @@ async def get_categories():
 
 
 @router.get("/settings")
+@cache_result(ttl=1800, key_prefix="config_settings", entity_type="config")  # Cache for 30 minutes
 async def get_config_settings(
     session: AsyncSession = Depends(get_db_session),
 ):
     """Получить настройки генерации конфигов."""
-    from database import GlobalSetting
     from sqlalchemy import select
+
+    from infrastructure.database.models import GlobalSetting
 
     result = await session.execute(
         select(GlobalSetting).where(GlobalSetting.key == "config_generation_methods")
@@ -419,13 +451,15 @@ async def get_config_settings(
 
     if setting:
         return [setting]
-    
+
     # Возвращаем настройки по умолчанию
-    return [{
-        "key": "config_generation_methods",
-        "value": {
-            "allow_all": True,
-            "allow_liquidity": True,
-            "allow_category": True,
-        },
-    }]
+    return [
+        {
+            "key": "config_generation_methods",
+            "value": {
+                "allow_all": True,
+                "allow_liquidity": True,
+                "allow_category": True,
+            },
+        }
+    ]

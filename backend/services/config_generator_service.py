@@ -13,25 +13,42 @@
 import logging
 import math
 import statistics
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import Settings
-from models import ConfigMode, ConfigItemResponse
-from services.marketplace_service import MarketplaceService
+from metrics.prometheus import (
+    config_generation_duration_seconds,
+    config_generations_total,
+    config_history_saves_total,
+    config_items_generated_total,
+)
+from models import ConfigItemResponse, ConfigMode
+from infrastructure.cache.application_cache import (
+    get_application_cache, 
+    cache_result, 
+    invalidate_cache,
+    ConfigCache
+)
 from services.historical_data_service import HistoricalDataService
+from services.item_categories import (
+    categorize_item,
+    get_all_categories,
+    get_items_by_category,
+)
 from services.lavka_service import LavkaService
-from services.item_categories import categorize_item, get_items_by_category, get_all_categories
+from services.marketplace_service import MarketplaceService
 
 logger = logging.getLogger(__name__)
 
 
 class ConfidenceLevel(Enum):
     """Уровни уверенности в расчётах."""
+
     VERY_LOW = "very_low"
     LOW = "low"
     MEDIUM = "medium"
@@ -42,6 +59,7 @@ class ConfidenceLevel(Enum):
 @dataclass
 class PriceAnalysis:
     """Результат анализа цены для предмета."""
+
     item_id: int
     item_name: str
     current_prices: List[float] = field(default_factory=list)
@@ -101,11 +119,11 @@ class ConfigGeneratorService:
         self.weight_current = self.WEIGHT_CURRENT
         self.weight_historical = self.WEIGHT_HISTORICAL
         self.weight_trend = self.WEIGHT_TREND
-        
+
         # Кэш для анализа предметов (TTL: 5 минут)
         self._analysis_cache: Dict[str, Tuple[PriceAnalysis, datetime]] = {}
         self._cache_ttl = 300  # секунд
-        
+
         # Флаг для отслеживания манипуляций (для логирования)
         self._manipulation_warnings: Dict[str, int] = {}
 
@@ -133,7 +151,9 @@ class ConfigGeneratorService:
         mode_key = "items_sell" if mode == ConfigMode.SELL else "items_buy"
         price_key = "price_sell" if mode == ConfigMode.SELL else "price_buy"
 
-        logger.info(f"Группировка предметов: server_id={server_id}, mode={mode.value}, пользователей={len(users_data)}")
+        logger.info(
+            f"Группировка предметов: server_id={server_id}, mode={mode.value}, пользователей={len(users_data)}"
+        )
 
         for user_data in users_data:
             if user_data.get("serverId") != server_id:
@@ -163,11 +183,30 @@ class ConfigGeneratorService:
     def invalidate_cache(self):
         """
         Очищает кэш анализа предметов.
-        
+
         Вызывается перед новой генерацией для обеспечения актуальности данных.
         """
         self._analysis_cache.clear()
         logger.debug("Кэш анализа предметов очищен")
+
+    async def invalidate_cache_async(self):
+        """
+        Асинхронная очистка кэша сервиса.
+        
+        Вызывается перед новой генерацией для обеспечения актуальности данных.
+        """
+        self._analysis_cache.clear()
+        
+        # Также очистим кэш приложения
+        try:
+            from infrastructure.cache.application_cache import get_application_cache
+            cache = get_application_cache()
+            # Очищаем все кэшированные конфигурации для данного сервера и режима
+            await cache.clear_pattern(f"config_gen:*")
+        except Exception as e:
+            logger.warning(f"Could not clear application cache: {e}")
+        
+        logger.debug("Кэш анализа предметов очищен (асинхронно)")
 
     def _check_manipulation(
         self,
@@ -175,48 +214,48 @@ class ConfigGeneratorService:
         prices: List[float],
         users_data: List[dict],
         server_id: int,
-        mode: ConfigMode
+        mode: ConfigMode,
     ) -> Tuple[bool, str]:
         """
         Выявляет подозрительные паттерны (консервативно, без ложных срабатываний).
-        
+
         Критерии обнаружения манипуляций (все должны выполняться):
         1. Один пользователь имеет >70% всех предложений (очень высокий порог)
         2. При этом у него >10 предложений (минимум для статистики)
         3. Цены одинаковые или отличаются <5% (признак сговора)
-        
+
         Args:
             item_name: Название предмета
             prices: Список цен
             users_data: Данные пользователей
             server_id: ID сервера
             mode: Режим торговли
-        
+
         Returns:
             (is_manipulated, reason) - если манипуляция не обнаружена, (False, "")
         """
         # Требуем минимум 10 цен для анализа (защита от ложных срабатываний)
         if len(prices) < 10:
             return False, ""
-        
+
         # Считаем предложения по пользователям
         user_prices: Dict[str, List[float]] = {}
         mode_key = "items_sell" if mode == ConfigMode.SELL else "items_buy"
         price_key = "price_sell" if mode == ConfigMode.SELL else "price_buy"
-        
+
         for user_data in users_data:
             if user_data.get("serverId") != server_id:
                 continue
-            
+
             username = user_data.get("username", "unknown")
             items = user_data.get(mode_key) or []
             user_prices_list = user_data.get(price_key) or []
-            
+
             for item, price in zip(items, user_prices_list):
                 parsed_id = LavkaService.parse_item_id(item)
                 if parsed_id is None:
                     continue
-                
+
                 # Проверяем, тот ли это предмет
                 try:
                     item_name_check = LavkaService.get_item_name(parsed_id)
@@ -224,40 +263,46 @@ class ConfigGeneratorService:
                         continue
                 except (ValueError, TypeError):
                     continue
-                
+
                 if username not in user_prices:
                     user_prices[username] = []
                 try:
                     user_prices[username].append(float(price))
                 except (ValueError, TypeError):
                     continue
-        
+
         # Проверка: один пользователь имеет >70% предложений
         total_prices = sum(len(p) for p in user_prices.values())
         if total_prices < 10:  # Ещё одна проверка
             return False, ""
-        
-        max_user_prices = max(len(p) for p in user_prices.values()) if user_prices else 0
+
+        max_user_prices = (
+            max(len(p) for p in user_prices.values()) if user_prices else 0
+        )
         dominance_ratio = max_user_prices / total_prices if total_prices > 0 else 0
-        
+
         # Порог 70% для обнаружения доминирования
         if dominance_ratio <= 0.70:
             return False, ""
-        
+
         # Проверка на одинаковость цен у доминирующего пользователя
         dominant_user = max(user_prices.keys(), key=lambda u: len(user_prices[u]))
         dominant_prices = user_prices[dominant_user]
-        
+
         if len(dominant_prices) < 10:
             return False, ""
-        
+
         # Проверяем, насколько одинаковы цены (вариация <5%)
         avg_price = statistics.mean(dominant_prices)
         if avg_price == 0:
             return False, ""
-        
-        variance = statistics.stdev(dominant_prices) / avg_price if len(dominant_prices) > 1 else 0
-        
+
+        variance = (
+            statistics.stdev(dominant_prices) / avg_price
+            if len(dominant_prices) > 1
+            else 0
+        )
+
         # Манипуляция: доминирование >70% + вариация цен <5%
         if variance < 0.05:
             # Логирование с ограничением частоты (не чаще 1 раза на предмет)
@@ -268,9 +313,9 @@ class ConfigGeneratorService:
                     f"variance={variance:.2%}"
                 )
                 self._manipulation_warnings[item_name] = 1
-            
+
             return True, f"User {dominant_user} dominates with {dominance_ratio:.1%}"
-        
+
         return False, ""
 
     def _calculate_dynamic_weights(
@@ -278,7 +323,7 @@ class ConfigGeneratorService:
         liquidity_score: float,
         data_points: int,
         price_variance: float,
-        mode: str = "sell"
+        mode: str = "sell",
     ) -> Tuple[float, float, float]:
         """
         Адаптивная настройка весов (консервативно, без резких изменений).
@@ -318,11 +363,11 @@ class ConfigGeneratorService:
     def _create_config_item(self, item_name: str, price: int) -> ConfigItemResponse:
         """
         Создаёт ConfigItemResponse с стандартными параметрами.
-        
+
         Args:
             item_name: Название предмета
             price: Цена предмета
-            
+
         Returns:
             ConfigItemResponse с заполненными полями
         """
@@ -366,34 +411,36 @@ class ConfigGeneratorService:
         stats = {
             "total_items": len(config_items),
             "items_with_history": items_with_history,
-            "avg_confidence": statistics.mean(confidence_scores) if confidence_scores else 0,
+            "avg_confidence": (
+                statistics.mean(confidence_scores) if confidence_scores else 0
+            ),
             "price_range": {
                 "min": min(price_values) if price_values else 0,
                 "max": max(price_values) if price_values else 0,
                 "avg": statistics.mean(price_values) if price_values else 0,
                 "median": statistics.median(price_values) if price_values else 0,
-            }
+            },
         }
 
         # Расширенная статистика (только если есть данные)
         if price_values:
             sorted_prices = sorted(price_values)
             n = len(sorted_prices)
-            
+
             # Процентили
             stats["percentiles"] = {
                 "p25": sorted_prices[n // 4] if n >= 4 else sorted_prices[0],
                 "p50": sorted_prices[n // 2],
                 "p75": sorted_prices[3 * n // 4] if n >= 4 else sorted_prices[-1],
             }
-            
+
             # Распределение по ценовым категориям
             stats["price_distribution"] = {
                 "cheap": sum(1 for p in price_values if p < 50),
                 "medium": sum(1 for p in price_values if 50 <= p < 200),
                 "expensive": sum(1 for p in price_values if p >= 200),
             }
-        
+
         # Распределение уверенности
         if confidence_scores:
             stats["confidence_distribution"] = {
@@ -406,7 +453,7 @@ class ConfigGeneratorService:
             stats.update(extra_stats)
 
         return stats
-    
+
     @staticmethod
     def _calculate_iqr_median(prices: List[float], use_percentile: float = 50) -> float:
         """
@@ -440,11 +487,15 @@ class ConfigGeneratorService:
 
         q1_lower = int(q1_pos)
         q1_upper = min(q1_lower + 1, n - 1)
-        q1 = sorted_prices[q1_lower] + (q1_pos - q1_lower) * (sorted_prices[q1_upper] - sorted_prices[q1_lower])
+        q1 = sorted_prices[q1_lower] + (q1_pos - q1_lower) * (
+            sorted_prices[q1_upper] - sorted_prices[q1_lower]
+        )
 
         q3_lower = int(q3_pos)
         q3_upper = min(q3_lower + 1, n - 1)
-        q3 = sorted_prices[q3_lower] + (q3_pos - q3_lower) * (sorted_prices[q3_upper] - sorted_prices[q3_lower])
+        q3 = sorted_prices[q3_lower] + (q3_pos - q3_lower) * (
+            sorted_prices[q3_upper] - sorted_prices[q3_lower]
+        )
 
         iqr = q3 - q1
         lower_bound = q1 - 1.5 * iqr
@@ -454,7 +505,9 @@ class ConfigGeneratorService:
 
         # Если отфильтровано больше 50% данных, используем перцентиль всех цен
         if len(filtered) < len(prices) * 0.5:
-            logger.debug(f"Отфильтровано {len(prices) - len(filtered)} из {len(prices)} цен (>50%), используем исходный перцентиль")
+            logger.debug(
+                f"Отфильтровано {len(prices) - len(filtered)} из {len(prices)} цен (>50%), используем исходный перцентиль"
+            )
             # Расчёт перцентиля
             k = (len(sorted_prices) - 1) * (use_percentile / 100)
             f = int(k)
@@ -466,49 +519,51 @@ class ConfigGeneratorService:
         f = int(k)
         c = f + 1 if f + 1 < len(filtered) else f
         return filtered[f] + (k - f) * (filtered[c] - filtered[f])
-    
+
     @staticmethod
     def _calculate_confidence(
         current_count: int,
         historical_days: int,
         liquidity: float,
-        price_variance: float
+        price_variance: float,
     ) -> Tuple[ConfidenceLevel, float]:
         """Рассчитывает уровень уверенности (0-1)."""
         score = 0.0
-        
+
         if current_count >= 10:
             score += 0.3
         elif current_count >= 5:
             score += 0.2
         elif current_count >= 2:
             score += 0.1
-        
+
         if historical_days >= 14:
             score += 0.3
         elif historical_days >= 7:
             score += 0.2
         elif historical_days >= 3:
             score += 0.1
-        
+
         score += (liquidity / 100) * 0.25
         score += (1 - min(price_variance, 1)) * 0.15
-        
+
         thresholds = {
             ConfidenceLevel.VERY_HIGH: 0.90,
             ConfidenceLevel.HIGH: 0.75,
             ConfidenceLevel.MEDIUM: 0.50,
             ConfidenceLevel.LOW: 0.25,
         }
-        
+
         for level, threshold in thresholds.items():
             if score >= threshold:
                 return level, score
-        
+
         return ConfidenceLevel.VERY_LOW, score
-    
+
     @staticmethod
-    def _round_price(price: float, confidence: ConfidenceLevel, mode: str = "sell") -> int:
+    def _round_price(
+        price: float, confidence: ConfidenceLevel, mode: str = "sell"
+    ) -> int:
         """
         Округляет цену в зависимости от уверенности и режима.
 
@@ -532,8 +587,8 @@ class ConfigGeneratorService:
                 return int(math.ceil(price / 10) * 10)
             else:
                 return int(math.floor(price / 10) * 10)
-    
-    def analyze_item(
+
+    async def analyze_item(
         self,
         item_id: int,
         item_name: str,
@@ -545,13 +600,13 @@ class ConfigGeneratorService:
     ) -> PriceAnalysis:
         """
         Анализирует предмет и рассчитывает справедливую цену.
-        
+
         Улучшения:
         1. Кэширование результатов (TTL: 5 минут)
         2. Исправленное применение тренда (аддитивное, не мультипликативное)
         3. Адаптивные веса в зависимости от качества данных
         4. Детекция манипуляций (консервативная)
-        
+
         Args:
             item_id: ID предмета
             item_name: Название предмета
@@ -560,25 +615,25 @@ class ConfigGeneratorService:
             server_id: ID сервера
             users_data: Данные пользователей (для детекции манипуляций)
             config_mode: Режим конфига (для детекции манипуляций)
-        
+
         Returns:
             PriceAnalysis с результатами анализа
         """
         # Проверка кэша
         cache_key = f"{item_id}:{mode}:{server_id}"
         now = datetime.utcnow()
-        
+
         if cache_key in self._analysis_cache:
             cached_analysis, cached_time = self._analysis_cache[cache_key]
             if (now - cached_time).total_seconds() < self._cache_ttl:
                 return cached_analysis
-        
+
         # Базовая инициализация
         analysis = PriceAnalysis(
             item_id=item_id,
             item_name=item_name,
             current_prices=current_prices.copy(),
-            data_points_current=len(current_prices)
+            data_points_current=len(current_prices),
         )
 
         current_median = 0.0
@@ -587,10 +642,19 @@ class ConfigGeneratorService:
         if current_prices:
             # Для SELL режима используем 75-й перцентиль (верхняя четверть), для BUY - медиану
             # Это даёт более высокие цены для продажи и более низкие для покупки
-            percentile = 75 if (isinstance(mode, str) and mode.lower() == "sell") or (hasattr(mode, 'value') and mode.value == "SELL") else 50
-            current_median = self._calculate_iqr_median(current_prices, use_percentile=percentile)
+            percentile = (
+                75
+                if (isinstance(mode, str) and mode.lower() == "sell")
+                or (hasattr(mode, "value") and mode.value == "SELL")
+                else 50
+            )
+            current_median = self._calculate_iqr_median(
+                current_prices, use_percentile=percentile
+            )
             current_avg = statistics.mean(current_prices)
-            current_std = statistics.stdev(current_prices) if len(current_prices) > 1 else 0
+            current_std = (
+                statistics.stdev(current_prices) if len(current_prices) > 1 else 0
+            )
             current_variance = (current_std / current_avg) if current_avg > 0 else 0
 
         # Получаем исторические данные
@@ -603,32 +667,34 @@ class ConfigGeneratorService:
         # для BUY конфига используем sell историю (цены, по которым продавали)
         historical_mode = "buy" if mode_lower == "sell" else "sell"
 
-        historical_trend = analyzer.calculate_price_trend(item_name, historical_mode, days=7)
+        historical_trend = await analyzer.calculate_price_trend(
+            item_name, historical_mode, days=7
+        )
 
         analysis.historical_avg = historical_trend.get("avg_price", 0)
         analysis.historical_trend = historical_trend.get("trend", "stable")
-        analysis.historical_trend_percent = historical_trend.get("price_change_percent", 0)
-        analysis.liquidity_score = analyzer.calculate_liquidity_score(item_name, historical_mode, days=30)
+        analysis.historical_trend_percent = historical_trend.get(
+            "price_change_percent", 0
+        )
+        analysis.liquidity_score = await analyzer.calculate_liquidity_score(
+            item_name, historical_mode, days=30
+        )
         analysis.data_points_historical = historical_trend.get("data_points", 0)
         analysis.used_historical = analysis.data_points_historical > 0
 
-        # Детекция манипуляций (если предоставлены данные)
-        is_manipulated = False
+        # Детекция манипуляций (только логирование, без влияния на расчёты)
         if users_data and config_mode and len(current_prices) >= 10:
-            is_manipulated, _ = self._check_manipulation(
+            is_manipulated, reason = self._check_manipulation(
                 item_name, current_prices, users_data, server_id, config_mode
             )
-            # При манипуляции снижаем ликвидность на 50%
             if is_manipulated:
-                analysis.liquidity_score *= 0.5
-                logger.debug(f"Предмет {item_name}: ликвидность снижена из-за возможной манипуляции")
+                logger.info(
+                    f"Предмет {item_name}: возможная манипуляция ({reason}) — учтено в логах"
+                )
 
         # Адаптивные веса (с учётом режима)
         w_current, w_historical, w_trend = self._calculate_dynamic_weights(
-            analysis.liquidity_score,
-            len(current_prices),
-            current_variance,
-            mode_lower
+            analysis.liquidity_score, len(current_prices), current_variance, mode_lower
         )
 
         # Расчёт взвешенной цены (ИСПРАВЛЕНО: тренд применяется аддитивно)
@@ -649,11 +715,15 @@ class ConfigGeneratorService:
             trend_adjustment = 0.0
             if analysis.historical_trend == "up":
                 # Рост тренда → добавляем к цене
-                trend_adjustment = analysis.historical_avg * (abs(analysis.historical_trend_percent) / 100 * 0.5)
+                trend_adjustment = analysis.historical_avg * (
+                    abs(analysis.historical_trend_percent) / 100 * 0.5
+                )
             elif analysis.historical_trend == "down":
                 # Падение тренда → вычитаем из цены
-                trend_adjustment = -analysis.historical_avg * (abs(analysis.historical_trend_percent) / 100 * 0.5)
-            
+                trend_adjustment = -analysis.historical_avg * (
+                    abs(analysis.historical_trend_percent) / 100 * 0.5
+                )
+
             weighted_price += trend_adjustment * w_trend
             weights_used += w_trend
 
@@ -673,7 +743,9 @@ class ConfigGeneratorService:
         )
 
         # Округление (с учётом режима)
-        analysis.final_price = self._round_price(analysis.weighted_price, analysis.confidence, mode_lower)
+        analysis.final_price = self._round_price(
+            analysis.weighted_price, analysis.confidence, mode_lower
+        )
         analysis.final_price = max(analysis.final_price, 1)
 
         # Сохранение в кэш
@@ -681,6 +753,7 @@ class ConfigGeneratorService:
 
         return analysis
 
+    @cache_result(ttl=600, key_prefix="config_gen", entity_type="config")  # Cache for 10 minutes
     async def generate_config(
         self,
         server_id: int,
@@ -708,29 +781,42 @@ class ConfigGeneratorService:
             - server_id должен быть в диапазоне [0, 32]
             - users_data не должен быть пустым
         """
+        import time
+
+        start_time = time.time()
+
         # Валидация входных данных (guard clauses)
         if percentage < -50 or percentage > 50:
-            logger.warning(f"Percentage {percentage} out of range, clamping to [-50, 50]")
+            logger.warning(
+                f"Percentage {percentage} out of range, clamping to [-50, 50]"
+            )
             percentage = max(-50, min(50, percentage))
 
         if server_id < 0 or server_id > 32:
             logger.error(f"Invalid server_id: {server_id}")
+            config_generations_total.labels(status="failure", mode=mode.value).inc()
             raise ValueError(f"server_id must be between 0 and 32, got {server_id}")
 
         # Guard clause: проверка на пустые данные
         if not users_data:
             logger.error("Empty users_data provided to generate_config")
-            raise ValueError("users_data cannot be empty - marketplace API returned no data")
+            config_generations_total.labels(status="failure", mode=mode.value).inc()
+            raise ValueError(
+                "users_data cannot be empty - marketplace API returned no data"
+            )
 
         # Guard clause: проверка users_data на корректность структуры
         if not all(isinstance(u, dict) for u in users_data):
             logger.error("Invalid users_data structure: expected list of dicts")
+            config_generations_total.labels(status="failure", mode=mode.value).inc()
             raise ValueError("users_data must be a list of dictionaries")
 
-        logger.info(f"Начало генерации конфига: server_id={server_id}, mode={mode.value}, percentage={percentage}")
+        logger.info(
+            f"Начало генерации конфига: server_id={server_id}, mode={mode.value}, percentage={percentage}"
+        )
 
         # Очистка кэша перед новой генерацией
-        self.invalidate_cache()
+        await self.invalidate_cache_async()
 
         # Группировка предметов по item_id (используем базовый метод)
         items_data = self._group_items_from_users(users_data, server_id, mode)
@@ -744,9 +830,14 @@ class ConfigGeneratorService:
         filtered_by_liquidity = 0
 
         for item_id, (item_name, prices) in items_data.items():
-            analysis = self.analyze_item(
-                item_id, item_name, prices, mode.value, server_id,
-                users_data=users_data, config_mode=mode
+            analysis = await self.analyze_item(
+                item_id,
+                item_name,
+                prices,
+                mode.value,
+                server_id,
+                users_data=users_data,
+                config_mode=mode,
             )
 
             # Фильтрация по ликвидности
@@ -766,12 +857,13 @@ class ConfigGeneratorService:
             config_item = self._create_config_item(item_name, adjusted_price)
             config_items.append(config_item)
 
-        logger.info(f"Сгенерировано {len(config_items)} предметов в конфиге (отфильтровано по ликвидности: {filtered_by_liquidity})")
+        logger.info(
+            f"Сгенерировано {len(config_items)} предметов в конфиге (отфильтровано по ликвидности: {filtered_by_liquidity})"
+        )
 
         # Сортировка по item_id и присвоение position_tab
         config_items_sorted = sorted(
-            zip(list(items_data.keys()), config_items),
-            key=lambda x: x[0]
+            zip(list(items_data.keys()), config_items), key=lambda x: x[0]
         )
 
         final_items = []
@@ -789,8 +881,19 @@ class ConfigGeneratorService:
             },
         )
 
+        # Запись метрик Prometheus
+        duration = time.time() - start_time
+        config_generations_total.labels(status="success", mode=mode.value).inc()
+        config_items_generated_total.labels(mode=mode.value).inc(len(final_items))
+        config_generation_duration_seconds.labels(mode=mode.value).observe(duration)
+
+        logger.info(
+            f"Генерация конфига завершена: {len(final_items)} предметов за {duration:.2f}с"
+        )
+
         return final_items, stats
 
+    @cache_result(ttl=600, key_prefix="config_gen_liquidity", entity_type="config")  # Cache for 10 minutes
     async def generate_config_by_liquidity(
         self,
         server_id: int,
@@ -820,7 +923,9 @@ class ConfigGeneratorService:
         # Guard clause: проверка на пустые данные
         if not users_data:
             logger.error("Empty users_data provided to generate_config_by_liquidity")
-            raise ValueError("users_data cannot be empty - marketplace API returned no data")
+            raise ValueError(
+                "users_data cannot be empty - marketplace API returned no data"
+            )
 
         # Guard clause: проверка структуры данных
         if not all(isinstance(u, dict) for u in users_data):
@@ -833,7 +938,7 @@ class ConfigGeneratorService:
             top_count = max(1, min(100, top_count))
 
         # Очистка кэша перед новой генерацией
-        self.invalidate_cache()
+        await self.invalidate_cache_async()
 
         # Группировка предметов (используем базовый метод)
         items_data = self._group_items_from_users(users_data, server_id, mode)
@@ -843,10 +948,8 @@ class ConfigGeneratorService:
         analyzer = self.historical_data_service.get_analyzer(server_id)
 
         for item_id, (item_name, prices) in items_data.items():
-            liquidity = analyzer.calculate_liquidity_score(
-                item_name,
-                mode.value,
-                days=30
+            liquidity = await analyzer.calculate_liquidity_score(
+                item_name, mode.value, days=30
             )
             liquidity_scores.append((item_id, item_name, prices, liquidity))
 
@@ -859,9 +962,14 @@ class ConfigGeneratorService:
         confidence_scores = []
 
         for item_id, item_name, prices, liquidity in top_items:
-            analysis = self.analyze_item(
-                item_id, item_name, prices, mode.value, server_id,
-                users_data=users_data, config_mode=mode
+            analysis = await self.analyze_item(
+                item_id,
+                item_name,
+                prices,
+                mode.value,
+                server_id,
+                users_data=users_data,
+                config_mode=mode,
             )
             confidence_scores.append(analysis.confidence_score)
 
@@ -882,12 +990,15 @@ class ConfigGeneratorService:
             confidence_scores=confidence_scores,
             extra_stats={
                 "top_count": top_count,
-                "avg_liquidity": statistics.mean([x[3] for x in top_items]) if top_items else 0,
-            }
+                "avg_liquidity": (
+                    statistics.mean([x[3] for x in top_items]) if top_items else 0
+                ),
+            },
         )
 
         return config_items, stats
 
+    @cache_result(ttl=600, key_prefix="config_gen_category", entity_type="config")  # Cache for 10 minutes
     async def generate_config_by_category(
         self,
         server_id: int,
@@ -917,7 +1028,9 @@ class ConfigGeneratorService:
         # Guard clause: проверка на пустые данные
         if not users_data:
             logger.error("Empty users_data provided to generate_config_by_category")
-            raise ValueError("users_data cannot be empty - marketplace API returned no data")
+            raise ValueError(
+                "users_data cannot be empty - marketplace API returned no data"
+            )
 
         # Guard clause: проверка структуры данных
         if not all(isinstance(u, dict) for u in users_data):
@@ -926,13 +1039,14 @@ class ConfigGeneratorService:
 
         # Guard clause: валидация category
         from services.item_categories import get_all_categories
+
         valid_categories = [str(i) for i in range(len(get_all_categories()))]
         if category not in valid_categories and category != "all":
             logger.warning(f"Invalid category '{category}', using 'all' instead")
             category = "all"
 
         # Очистка кэша перед новой генерацией
-        self.invalidate_cache()
+        await self.invalidate_cache_async()
 
         # Группировка предметов (используем базовый метод)
         items_data = self._group_items_from_users(users_data, server_id, mode)
@@ -946,9 +1060,14 @@ class ConfigGeneratorService:
         confidence_scores = []
 
         for item_id, (item_name, prices) in filtered_items.items():
-            analysis = self.analyze_item(
-                item_id, item_name, prices, mode.value, server_id,
-                users_data=users_data, config_mode=mode
+            analysis = await self.analyze_item(
+                item_id,
+                item_name,
+                prices,
+                mode.value,
+                server_id,
+                users_data=users_data,
+                config_mode=mode,
             )
 
             if analysis.used_historical:
@@ -965,8 +1084,7 @@ class ConfigGeneratorService:
 
         # Сортировка по item_id и присвоение position_tab
         config_items_sorted = sorted(
-            zip(list(filtered_items.keys()), config_items),
-            key=lambda x: x[0]
+            zip(list(filtered_items.keys()), config_items), key=lambda x: x[0]
         )
 
         final_items = []
@@ -982,8 +1100,12 @@ class ConfigGeneratorService:
             confidence_scores=confidence_scores,
             extra_stats={
                 "category": category,
-                "category_name": all_categories[int(category)]["name"] if category.isdigit() and int(category) < len(all_categories) else category,
-            }
+                "category_name": (
+                    all_categories[int(category)]["name"]
+                    if category.isdigit() and int(category) < len(all_categories)
+                    else category
+                ),
+            },
         )
 
         return final_items, stats
@@ -999,10 +1121,10 @@ class ConfigGeneratorService:
     ) -> Dict[str, Tuple[List[ConfigItemResponse], Dict]]:
         """
         Генерирует конфиги для нескольких категорий за один проход.
-        
+
         Оптимизация: предметы анализируются один раз, затем распределяются по категориям.
         Ускорение: в 5-10 раз при генерации для нескольких категорий.
-        
+
         Args:
             server_id: ID сервера
             mode: Режим (SELL/BUY)
@@ -1010,107 +1132,115 @@ class ConfigGeneratorService:
             users_data: Данные пользователей из API
             categories: Список категорий или None для всех доступных
             min_liquidity: Минимальный порог ликвидности (0-100)
-        
+
         Returns:
             Dict {category: (config_items, stats)}
         """
         # Guard clauses
         if server_id < 0 or server_id > 32:
             raise ValueError(f"server_id must be between 0 and 32, got {server_id}")
-        
+
         if not users_data:
             raise ValueError("users_data cannot be empty")
-        
+
         if not all(isinstance(u, dict) for u in users_data):
             raise ValueError("users_data must be a list of dictionaries")
-        
+
         # Очистка кэша
         self.invalidate_cache()
-        
+
         # Группировка предметов
         items_data = self._group_items_from_users(users_data, server_id, mode)
-        
-        logger.info(f"Пакетная генерация: {len(items_data)} предметов, категории={categories}")
-        
+
+        logger.info(
+            f"Пакетная генерация: {len(items_data)} предметов, категории={categories}"
+        )
+
         # Анализ ВСЕХ предметов один раз
         all_analyses: Dict[int, PriceAnalysis] = {}
         for item_id, (item_name, prices) in items_data.items():
-            all_analyses[item_id] = self.analyze_item(
-                item_id, item_name, prices, mode.value, server_id,
-                users_data=users_data, config_mode=mode
+            all_analyses[item_id] = await self.analyze_item(
+                item_id,
+                item_name,
+                prices,
+                mode.value,
+                server_id,
+                users_data=users_data,
+                config_mode=mode,
             )
-        
+
         # Определение категорий для генерации
         if categories is None:
             all_cats = get_all_categories()
             categories = ["all"] + [str(i) for i in range(len(all_cats))]
-        
+
         # Генерация по категориям
         results: Dict[str, Tuple[List[ConfigItemResponse], Dict]] = {}
-        
+
         for category in categories:
             # Фильтрация предметов по категории
             if category == "all":
                 filtered_items = items_data
             else:
                 filtered_items = get_items_by_category(items_data, category)
-            
+
             # Создание конфига из готовых анализов
             config_items: List[ConfigItemResponse] = []
             items_with_history = 0
             confidence_scores = []
             filtered_by_liquidity = 0
-            
+
             for item_id in filtered_items.keys():
                 analysis = all_analyses[item_id]
-                
+
                 # Фильтрация по ликвидности
                 if analysis.liquidity_score < min_liquidity:
                     filtered_by_liquidity += 1
                     continue
-                
+
                 if analysis.used_historical:
                     items_with_history += 1
-                
+
                 confidence_scores.append(analysis.confidence_score)
-                
+
                 # Процентная корректировка
                 adjusted_price = int(analysis.final_price * (1 + percentage / 100))
                 adjusted_price = max(adjusted_price, 1)
-                
-                config_item = self._create_config_item(analysis.item_name, adjusted_price)
+
+                config_item = self._create_config_item(
+                    analysis.item_name, adjusted_price
+                )
                 config_items.append(config_item)
-            
+
             # Сортировка по item_id и присвоение position_tab
             config_items_sorted = sorted(
-                zip(list(filtered_items.keys()), config_items),
-                key=lambda x: x[0]
+                zip(list(filtered_items.keys()), config_items), key=lambda x: x[0]
             )
-            
+
             final_items = []
             for idx, (item_id, item) in enumerate(config_items_sorted, start=1):
                 item.position_tab = idx
                 final_items.append(item)
-            
+
             # Статистика
             extra_stats = {
                 "filtered_by_liquidity": filtered_by_liquidity,
                 "category": category,
             }
-            
+
             if category != "all":
                 all_cats = get_all_categories()
                 if category.isdigit() and int(category) < len(all_cats):
                     extra_stats["category_name"] = all_cats[int(category)]["name"]
-            
+
             stats = self._calculate_stats(
                 config_items=final_items,
                 items_with_history=items_with_history,
                 confidence_scores=confidence_scores,
                 extra_stats=extra_stats,
             )
-            
+
             results[category] = (final_items, stats)
-        
+
         logger.info(f"Пакетная генерация завершена: {len(results)} категорий")
         return results

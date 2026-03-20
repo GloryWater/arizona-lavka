@@ -1,0 +1,19 @@
+# =============================================================================
+# Grafana Dashboards Provisioning
+# =============================================================================
+# Автоматическая настройка дашбордов
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'Arizona Lavka Dashboards'
+    orgId: 1
+    folder: 'Arizona Lavka'
+    folderUid: 'arizonalavka'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

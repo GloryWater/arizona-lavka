@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { UserPlus, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/model/useAuthStore';
 import { useToast } from '@/shared/ui/Toast';
+import { TurnstileWidget } from '@/features/auth/components/TurnstileWidget';
 import {
   Card,
   CardContent,
@@ -19,6 +20,7 @@ export function RegisterPage() {
   const { register, isLoading } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -54,8 +56,14 @@ export function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
+
+    // Check if Turnstile token is present
+    if (!turnstileToken) {
+      toast.error('Please complete the captcha verification');
+      return;
+    }
 
     try {
       await register({
@@ -64,8 +72,9 @@ export function RegisterPage() {
         password: formData.password,
         first_name: formData.first_name || undefined,
         last_name: formData.last_name || undefined,
+        turnstile_token: turnstileToken,
       });
-      toast.success('Аккаунт успешно создан');
+      toast.success('Аккаунт успешно создан. Пожалуйста, проверьте email для подтверждения.');
       navigate('/');
     } catch (error) {
       // Ошибка уже обработана в store
@@ -206,12 +215,19 @@ export function RegisterPage() {
                 </button>
               </Input>
 
+              {/* Cloudflare Turnstile Widget */}
+              <TurnstileWidget
+                onTokenChange={setTurnstileToken}
+                onError={(error) => toast.error(error)}
+              />
+
               <Button
                 type="submit"
                 className="w-full h-12 text-base bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300"
                 isLoading={isLoading}
                 icon={<UserPlus className="h-5 w-5" />}
                 data-testid="submit-button"
+                disabled={!turnstileToken}
               >
                 {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
               </Button>

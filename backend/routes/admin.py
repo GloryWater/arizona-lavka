@@ -10,23 +10,23 @@ import io
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func, desc, and_
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import User, ConfigHistory, AdminLog, GlobalSetting
-from dependencies import get_db_session, get_current_admin
+from dependencies import get_current_admin, get_db_session
+from infrastructure.database.models import AdminLog, ConfigHistory, GlobalSetting, User
 from models import (
-    AdminUserResponse,
     AdminLogResponse,
-    AdminStatsSummary,
     AdminStatsChartData,
+    AdminStatsSummary,
+    AdminUserResponse,
+    AuditLogResponse,
     GlobalSettingResponse,
     GlobalSettingUpdate,
-    AuditLogResponse,
 )
 from services.audit_log_service import AuditLogService
 
@@ -39,12 +39,11 @@ _settings_cache_timestamp: float = 0
 CACHE_TTL_SECONDS = 60
 
 
-def get_auth_service(
-    session: AsyncSession = Depends(get_db_session)
-):
+def get_auth_service(session: AsyncSession = Depends(get_db_session)):
     """Создаёт экземпляр AuthService."""
-    from services.auth_service import AuthService
     from config import get_settings
+    from services.auth_service import AuthService
+
     return AuthService(session, get_settings())
 
 
@@ -52,18 +51,24 @@ def get_auth_service(
 # Users Management
 # =============================================================================
 
+
 @router.get("/users", response_model=List[AdminUserResponse])
 async def get_users(
     page: int = Query(default=1, ge=1, description="Номер страницы"),
     limit: int = Query(default=100, ge=1, le=500, description="Лимит на странице"),
-    search: Optional[str] = Query(default=None, max_length=100, description="Поиск по id или username"),
-    sort_by: str = Query(default="created_at", description="Сортировка: created_at, username, configs_count"),
+    search: Optional[str] = Query(
+        default=None, max_length=100, description="Поиск по id или username"
+    ),
+    sort_by: str = Query(
+        default="created_at",
+        description="Сортировка: created_at, username, configs_count",
+    ),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     """
     Получение списка пользователей с пагинацией и фильтрацией.
-    
+
     - **page**: Номер страницы (начиная с 1)
     - **limit**: Количество элементов на странице (макс. 500)
     - **search**: Поиск по ID или username
@@ -71,7 +76,7 @@ async def get_users(
     """
     # Базовый запрос
     query = select(User)
-    
+
     # Поиск
     if search:
         # Пробуем найти по ID (если search - число)
@@ -81,7 +86,7 @@ async def get_users(
             )
         else:
             query = query.where(User.username.ilike(f"%{search}%"))
-    
+
     # Сортировка
     if sort_by == "username":
         query = query.order_by(User.username)
@@ -96,15 +101,15 @@ async def get_users(
         query = query.order_by(desc(configs_count_subquery))
     else:  # created_at
         query = query.order_by(desc(User.created_at))
-    
+
     # Пагинация
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
-    
+
     # Выполняем запрос
     result = await session.execute(query)
     users = result.scalars().all()
-    
+
     # Получаем количество конфигов для каждого пользователя
     users_with_configs = []
     for user in users:
@@ -112,7 +117,7 @@ async def get_users(
             select(func.count(ConfigHistory.id)).where(ConfigHistory.user_id == user.id)
         )
         configs_count = configs_count_result.scalar_one() or 0
-        
+
         user_dict = {
             "id": user.id,
             "username": user.username,
@@ -126,14 +131,16 @@ async def get_users(
             "configs_count": configs_count,
         }
         users_with_configs.append(AdminUserResponse(**user_dict))
-    
+
     # Логирование действия
     await _log_admin_action(
-        session, current_admin, "VIEW_USERS", 
+        session,
+        current_admin,
+        "VIEW_USERS",
         {"page": page, "limit": limit, "search": search},
-        request=None
+        request=None,
     )
-    
+
     return users_with_configs
 
 
@@ -144,44 +151,57 @@ async def export_users_to_csv(
 ):
     """
     Экспорт всех пользователей в CSV формат.
-    
+
     Возвращает файл в формате CSV со всеми пользователями.
     """
     # Получаем всех пользователей
     result = await session.execute(select(User).order_by(User.created_at))
     users = result.scalars().all()
-    
+
     # Создаём CSV в памяти
     output = io.StringIO()
     fieldnames = [
-        "id", "username", "email", "first_name", "last_name",
-        "is_premium", "role", "last_active_at", "created_at"
+        "id",
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "is_premium",
+        "role",
+        "last_active_at",
+        "created_at",
     ]
     writer = csv.DictWriter(output, fieldnames=fieldnames)
-    
+
     writer.writeheader()
     for user in users:
-        writer.writerow({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name or "",
-            "last_name": user.last_name or "",
-            "is_premium": user.is_premium,
-            "role": user.role,
-            "last_active_at": user.last_active_at.isoformat() if user.last_active_at else "",
-            "created_at": user.created_at.isoformat(),
-        })
-    
+        writer.writerow(
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name or "",
+                "last_name": user.last_name or "",
+                "is_premium": user.is_premium,
+                "role": user.role,
+                "last_active_at": (
+                    user.last_active_at.isoformat() if user.last_active_at else ""
+                ),
+                "created_at": user.created_at.isoformat(),
+            }
+        )
+
     output.seek(0)
-    
+
     # Логирование
     await _log_admin_action(
-        session, current_admin, "EXPORT_DATA",
+        session,
+        current_admin,
+        "EXPORT_DATA",
         {"type": "users_csv", "count": len(users)},
-        request=None
+        request=None,
     )
-    
+
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode("utf-8")),
         media_type="text/csv",
@@ -193,12 +213,15 @@ async def export_users_to_csv(
 # Admin Logs
 # =============================================================================
 
+
 @router.get("/logs", response_model=List[AdminLogResponse])
 async def get_admin_logs(
     start_date: Optional[datetime] = Query(default=None, description="Начальная дата"),
     end_date: Optional[datetime] = Query(default=None, description="Конечная дата"),
     event_type: Optional[str] = Query(default=None, description="Тип события"),
-    search_query: Optional[str] = Query(default=None, description="Поиск по user_id/username"),
+    search_query: Optional[str] = Query(
+        default=None, description="Поиск по user_id/username"
+    ),
     page: int = Query(default=1, ge=1, description="Номер страницы"),
     limit: int = Query(default=50, ge=1, le=200, description="Лимит на странице"),
     current_admin: User = Depends(get_current_admin),
@@ -206,49 +229,51 @@ async def get_admin_logs(
 ):
     """
     Получение логов админ-панели с фильтрацией.
-    
+
     - **start_date**: Начальная дата (ISO 8601)
     - **end_date**: Конечная дата (ISO 8601)
     - **event_type**: Тип события (LOGIN, LOGOUT, etc.)
     - **search_query**: Поиск по user_id или username
     """
     query = select(AdminLog)
-    
+
     # Фильтры
     conditions = []
-    
+
     if start_date:
         conditions.append(AdminLog.created_at >= start_date)
-    
+
     if end_date:
         conditions.append(AdminLog.created_at <= end_date)
-    
+
     if event_type:
         conditions.append(AdminLog.event_type == event_type)
-    
+
     if search_query:
         if search_query.isdigit():
             conditions.append(AdminLog.user_id == int(search_query))
         else:
             # Поиск по username через join
-            user_subquery = select(User.id).where(User.username.ilike(f"%{search_query}%"))
+            user_subquery = select(User.id).where(
+                User.username.ilike(f"%{search_query}%")
+            )
             conditions.append(AdminLog.user_id.in_(user_subquery.scalar_subquery()))
-    
+
     if conditions:
         query = query.where(and_(*conditions))
-    
+
     # Сортировка по убыванию даты
     query = query.order_by(desc(AdminLog.created_at))
-    
+
     # Пагинация
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
-    
+
     # Выполняем запрос с join для получения username
     query = query.outerjoin(User, AdminLog.user_id == User.id)
     result = await session.execute(query)
     logs = result.scalars().all()
-    
+
     # Формируем ответ с username
     logs_response = []
     for log in logs:
@@ -258,22 +283,30 @@ async def get_admin_logs(
             user = await session.get(User, log.user_id)
             if user:
                 username = user.username
-        
-        logs_response.append(AdminLogResponse(
-            id=log.id,
-            user_id=log.user_id,
-            username=username,
-            event_type=log.event_type,
-            details=log.details,
-            ip_address=log.ip_address,
-            created_at=log.created_at,
-        ))
-    
+
+        logs_response.append(
+            AdminLogResponse(
+                id=log.id,
+                user_id=log.user_id,
+                username=username,
+                event_type=log.event_type,
+                details=log.details,
+                ip_address=log.ip_address,
+                created_at=log.created_at,
+            )
+        )
+
     # Логирование просмотра логов
     await _log_admin_action(
-        session, current_admin, "VIEW_LOGS",
-        {"page": page, "limit": limit, "filters": {"start_date": str(start_date) if start_date else None}},
-        request=None
+        session,
+        current_admin,
+        "VIEW_LOGS",
+        {
+            "page": page,
+            "limit": limit,
+            "filters": {"start_date": str(start_date) if start_date else None},
+        },
+        request=None,
     )
 
     return logs_response
@@ -283,13 +316,21 @@ async def get_admin_logs(
 # User Audit Logs
 # =============================================================================
 
+
 @router.get("/logs/audit", response_model=List[AuditLogResponse])
 async def get_audit_logs(
     start_date: Optional[datetime] = Query(default=None, description="Начальная дата"),
     end_date: Optional[datetime] = Query(default=None, description="Конечная дата"),
-    action: Optional[str] = Query(default=None, description="Тип действия (USER_REGISTERED, CONFIG_GENERATED, etc.)"),
-    search_query: Optional[str] = Query(default=None, description="Поиск по user_id/username"),
-    status_filter: Optional[str] = Query(default=None, description="Статус (success, failure, error)"),
+    action: Optional[str] = Query(
+        default=None,
+        description="Тип действия (USER_REGISTERED, CONFIG_GENERATED, etc.)",
+    ),
+    search_query: Optional[str] = Query(
+        default=None, description="Поиск по user_id/username"
+    ),
+    status_filter: Optional[str] = Query(
+        default=None, description="Статус (success, failure, error)"
+    ),
     page: int = Query(default=1, ge=1, description="Номер страницы"),
     limit: int = Query(default=50, ge=1, le=200, description="Лимит на странице"),
     current_admin: User = Depends(get_current_admin),
@@ -304,7 +345,7 @@ async def get_audit_logs(
     - **search_query**: Поиск по user_id или username
     - **status_filter**: Фильтр по статусу (success, failure, error)
     """
-    from database import AuditLog
+    from infrastructure.database.models import AuditLog
 
     query = select(AuditLog)
 
@@ -328,7 +369,9 @@ async def get_audit_logs(
             conditions.append(AuditLog.user_id == int(search_query))
         else:
             # Поиск по username через join
-            user_subquery = select(User.id).where(User.username.ilike(f"%{search_query}%"))
+            user_subquery = select(User.id).where(
+                User.username.ilike(f"%{search_query}%")
+            )
             conditions.append(AuditLog.user_id.in_(user_subquery.scalar_subquery()))
 
     if conditions:
@@ -356,19 +399,21 @@ async def get_audit_logs(
             if user:
                 username = user.username
 
-        logs_response.append(AuditLogResponse(
-            id=log.id,
-            user_id=log.user_id,
-            username=username,
-            action=log.action,
-            resource=log.resource,
-            resource_id=log.resource_id,
-            ip_address=log.ip_address,
-            details=log.details,
-            status=log.status,
-            error_message=log.error_message,
-            created_at=log.created_at,
-        ))
+        logs_response.append(
+            AuditLogResponse(
+                id=log.id,
+                user_id=log.user_id,
+                username=username,
+                action=log.action,
+                resource=log.resource,
+                resource_id=log.resource_id,
+                ip_address=log.ip_address,
+                details=log.details,
+                status=log.status,
+                error_message=log.error_message,
+                created_at=log.created_at,
+            )
+        )
 
     return logs_response
 
@@ -376,6 +421,7 @@ async def get_audit_logs(
 # =============================================================================
 # Statistics
 # =============================================================================
+
 
 @router.get("/stats/summary", response_model=AdminStatsSummary)
 async def get_stats_summary(
@@ -426,7 +472,7 @@ async def get_stats_summary(
         )
     )
     configs_last_30_days = configs_last_30_days_result.scalar_one() or 0
-    
+
     # Среднее = конфиги за 30 дней / (пользователи * 30 дней)
     avg_configs_per_user_per_day = 0.0
     if total_users > 0:
@@ -434,9 +480,7 @@ async def get_stats_summary(
 
     # Логирование
     await _log_admin_action(
-        session, current_admin, "VIEW_STATS",
-        {"type": "summary"},
-        request=None
+        session, current_admin, "VIEW_STATS", {"type": "summary"}, request=None
     )
 
     return AdminStatsSummary(
@@ -463,7 +507,7 @@ async def get_stats_charts(
     - configs_generated: Количество сгенерированных конфигов
     """
     from sqlalchemy import Date, text
-    
+
     # Даты по умолчанию (последние 30 дней)
     if not start_date:
         start_date = datetime.utcnow() - timedelta(days=30)
@@ -474,52 +518,63 @@ async def get_stats_charts(
     # Для PostgreSQL используем raw SQL с корректным GROUP BY
     try:
         # PostgreSQL version - используем DATE() для конвертации
-        registrations_query = text("""
+        registrations_query = text(
+            """
             SELECT DATE(date_trunc('day', created_at)) as date, COUNT(id) as count
             FROM users
             WHERE created_at >= :start_date AND created_at <= :end_date
             GROUP BY DATE(date_trunc('day', created_at))
             ORDER BY date
-        """)
+        """
+        )
         registrations_result = await session.execute(
-            registrations_query,
-            {"start_date": start_date, "end_date": end_date}
+            registrations_query, {"start_date": start_date, "end_date": end_date}
         )
         registrations = {row.date: row.count for row in registrations_result}
     except Exception as e:
         # Fallback для SQLite
-        registrations_query = select(
-            func.strftime('%Y-%m-%d', User.created_at).label('date'),
-            func.count(User.id).label('count')
-        ).where(
-            and_(User.created_at >= start_date, User.created_at <= end_date)
-        ).group_by(func.strftime('%Y-%m-%d', User.created_at))
+        registrations_query = (
+            select(
+                func.strftime("%Y-%m-%d", User.created_at).label("date"),
+                func.count(User.id).label("count"),
+            )
+            .where(and_(User.created_at >= start_date, User.created_at <= end_date))
+            .group_by(func.strftime("%Y-%m-%d", User.created_at))
+        )
         registrations_result = await session.execute(registrations_query)
         registrations = {row.date: row.count for row in registrations_result}
 
     # Получаем конфиги по дням
     try:
         # PostgreSQL version
-        configs_query = text("""
+        configs_query = text(
+            """
             SELECT DATE(date_trunc('day', created_at)) as date, COUNT(id) as count
             FROM config_history
             WHERE created_at >= :start_date AND created_at <= :end_date
             GROUP BY DATE(date_trunc('day', created_at))
             ORDER BY date
-        """)
+        """
+        )
         configs_result = await session.execute(
-            configs_query,
-            {"start_date": start_date, "end_date": end_date}
+            configs_query, {"start_date": start_date, "end_date": end_date}
         )
         configs = {row.date: row.count for row in configs_result}
     except Exception as e:
         # Fallback для SQLite
-        configs_query = select(
-            func.strftime('%Y-%m-%d', ConfigHistory.created_at).label('date'),
-            func.count(ConfigHistory.id).label('count')
-        ).where(
-            and_(ConfigHistory.created_at >= start_date, ConfigHistory.created_at <= end_date)
-        ).group_by(func.strftime('%Y-%m-%d', ConfigHistory.created_at))
+        configs_query = (
+            select(
+                func.strftime("%Y-%m-%d", ConfigHistory.created_at).label("date"),
+                func.count(ConfigHistory.id).label("count"),
+            )
+            .where(
+                and_(
+                    ConfigHistory.created_at >= start_date,
+                    ConfigHistory.created_at <= end_date,
+                )
+            )
+            .group_by(func.strftime("%Y-%m-%d", ConfigHistory.created_at))
+        )
         configs_result = await session.execute(configs_query)
         configs = {row.date: row.count for row in configs_result}
 
@@ -528,12 +583,14 @@ async def get_stats_charts(
 
     chart_data = []
     for date in sorted(all_dates):
-        date_str = date.strftime('%Y-%m-%d') if hasattr(date, 'strftime') else str(date)
-        chart_data.append(AdminStatsChartData(
-            date=date_str,
-            registrations=registrations.get(date, 0),
-            configs_generated=configs.get(date, 0),
-        ))
+        date_str = date.strftime("%Y-%m-%d") if hasattr(date, "strftime") else str(date)
+        chart_data.append(
+            AdminStatsChartData(
+                date=date_str,
+                registrations=registrations.get(date, 0),
+                configs_generated=configs.get(date, 0),
+            )
+        )
 
     return chart_data
 
@@ -542,6 +599,7 @@ async def get_stats_charts(
 # Global Settings
 # =============================================================================
 
+
 @router.get("/settings", response_model=List[GlobalSettingResponse])
 async def get_global_settings(
     current_admin: User = Depends(get_current_admin),
@@ -549,26 +607,29 @@ async def get_global_settings(
 ):
     """
     Получение всех глобальных настроек.
-    
+
     Настройки кэшируются в памяти на 60 секунд.
     """
     global _settings_cache, _settings_cache_timestamp
     import time
-    
+
     current_time = time.time()
-    
+
     # Проверка кэша
-    if _settings_cache and (current_time - _settings_cache_timestamp) < CACHE_TTL_SECONDS:
+    if (
+        _settings_cache
+        and (current_time - _settings_cache_timestamp) < CACHE_TTL_SECONDS
+    ):
         return list(_settings_cache.values())
-    
+
     # Получаем из БД
     result = await session.execute(select(GlobalSetting).order_by(GlobalSetting.key))
     settings = result.scalars().all()
-    
+
     # Обновляем кэш
     _settings_cache = {s.key: s for s in settings}
     _settings_cache_timestamp = current_time
-    
+
     return [
         GlobalSettingResponse(
             key=s.key,
@@ -644,6 +705,7 @@ async def update_global_setting(
 # Maintenance Mode Management
 # =============================================================================
 
+
 @router.post("/maintenance/enable")
 async def enable_maintenance_mode(
     request: Request,
@@ -654,32 +716,31 @@ async def enable_maintenance_mode(
 ):
     """
     Включить режим обслуживания.
-    
+
     - **message**: Сообщение для пользователей
     - **estimated_end**: Предполагаемое время окончания (ISO 8601)
-    
+
     В режиме обслуживания:
     - Все запросы пользователей возвращают 503
     - Администраторы могут продолжать работу
     - Health check endpoints доступны всем
     """
     from services.maintenance_service import MaintenanceService
-    
+
     # Инвалидируем кэш перед изменением
     MaintenanceService.invalidate_cache()
-    
+
     success = await MaintenanceService.enable_maintenance(
         session=session,
         message=message,
         estimated_end=estimated_end,
     )
-    
+
     if not success:
         raise HTTPException(
-            status_code=500,
-            detail="Не удалось включить режим обслуживания"
+            status_code=500, detail="Не удалось включить режим обслуживания"
         )
-    
+
     # Логирование через AuditLogService
     audit_service = AuditLogService(session)
     await audit_service.log_event(
@@ -692,7 +753,7 @@ async def enable_maintenance_mode(
         },
         ip_address=request.client.host if request.client else None,
     )
-    
+
     return {
         "status": "success",
         "message": "Режим обслуживания включён",
@@ -700,7 +761,7 @@ async def enable_maintenance_mode(
             "enabled": True,
             "message": message,
             "estimated_end": estimated_end,
-        }
+        },
     }
 
 
@@ -714,18 +775,17 @@ async def disable_maintenance_mode(
     Выключить режим обслуживания.
     """
     from services.maintenance_service import MaintenanceService
-    
+
     # Инвалидируем кэш перед изменением
     MaintenanceService.invalidate_cache()
-    
+
     success = await MaintenanceService.disable_maintenance(session=session)
-    
+
     if not success:
         raise HTTPException(
-            status_code=500,
-            detail="Не удалось выключить режим обслуживания"
+            status_code=500, detail="Не удалось выключить режим обслуживания"
         )
-    
+
     # Логирование через AuditLogService
     audit_service = AuditLogService(session)
     await audit_service.log_event(
@@ -735,11 +795,8 @@ async def disable_maintenance_mode(
         details={},
         ip_address=request.client.host if request.client else None,
     )
-    
-    return {
-        "status": "success",
-        "message": "Режим обслуживания выключен"
-    }
+
+    return {"status": "success", "message": "Режим обслуживания выключен"}
 
 
 @router.get("/maintenance/status")
@@ -751,14 +808,14 @@ async def get_maintenance_status(
     Получить текущий статус режима обслуживания.
     """
     from services.maintenance_service import MaintenanceService
-    
+
     # Получаем актуальный статус из БД (не из кэша)
     maintenance_info = await MaintenanceService.get_maintenance_info(session)
-    
+
     is_maintenance = False
     if maintenance_info and isinstance(maintenance_info, dict):
         is_maintenance = maintenance_info.get("enabled", False)
-    
+
     return {
         "enabled": is_maintenance,
         "info": maintenance_info,
@@ -768,6 +825,7 @@ async def get_maintenance_status(
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 async def _log_admin_action(
     session: AsyncSession,
@@ -785,7 +843,7 @@ async def _log_admin_action(
         event_type: Тип события
         details: Детали события
         request: HTTP запрос (для получения IP)
-    
+
     Note:
         Использует транзакцию для обеспечения консистентности.
         Если user_id не существует, лог всё равно сохраняется (user_id=NULL).
@@ -793,7 +851,7 @@ async def _log_admin_action(
     ip_address = None
     if request:
         ip_address = request.client.host if request.client else None
-    
+
     try:
         log_entry = AdminLog(
             user_id=admin_user.id,
@@ -801,7 +859,7 @@ async def _log_admin_action(
             details=details,
             ip_address=ip_address,
         )
-        
+
         session.add(log_entry)
         await session.commit()
     except Exception as e:

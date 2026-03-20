@@ -4,17 +4,24 @@ Database models - ORM модели.
 Импортируем из connection.py где теперь определены ORM модели.
 """
 
-from infrastructure.database.connection import (
-    Base,
-    User,
-    ConfigHistory,
-    FavoriteItem,
-    PriceAlert,
-    AuditLog,
+from infrastructure.database.connection import (  # Security models; Metrics models
     AdminLog,
-    GlobalSetting,
-    UserRoleEnum,
     AdminLogEventEnum,
+    AuditLog,
+    Base,
+    ConfigHistory,
+    Conversion,
+    DailyMetrics,
+    DeviceFingerprint,
+    EmailVerificationToken,
+    FavoriteItem,
+    GlobalSetting,
+    PageView,
+    PriceAlert,
+    User,
+    UserEvent,
+    UserRoleEnum,
+    UserSession,
     _utc_now,
 )
 
@@ -30,4 +37,13 @@ __all__ = [
     "UserRoleEnum",
     "AdminLogEventEnum",
     "_utc_now",
+    # Security
+    "EmailVerificationToken",
+    "DeviceFingerprint",
+    # Metrics
+    "UserSession",
+    "PageView",
+    "UserEvent",
+    "Conversion",
+    "DailyMetrics",
 ]

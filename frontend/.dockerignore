@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+
+# Build output - built locally before docker build
+# dist/ - include this for docker build
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Documentation
+*.md
+
+# Config files not needed in runtime (build happens locally)
+vite.config.ts
+tailwind.config.js
+postcss.config.js
+tsconfig.json
+tsconfig.node.json
+
+# Scripts
+scripts/
+
+# Load tests
+../load_tests/
+
+# Backend
+../backend/
+
+# Data
+../data/
+
+# Qwen
+.qwen/
+
+# Playwright
+playwright-report/
+playwright/.cache/
+
+# Vitest
+vitest.config.ts

@@ -16,6 +16,15 @@ import httpx
 from cachetools import TTLCache
 
 from config import Settings
+from metrics.prometheus import (
+    external_api_circuit_breaker,
+    external_api_request_duration_seconds,
+    external_api_requests_total,
+    marketplace_cache_age_seconds,
+    marketplace_circuit_breaker_state,
+    marketplace_offers_count,
+    marketplace_offers_fetched_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +37,7 @@ def _utcnow() -> datetime:
 @dataclass
 class CacheEntry:
     """Запись кэша с данными и временем."""
+
     data: List[dict]
     timestamp: datetime
 
@@ -45,17 +55,19 @@ def _sanitize_item_name(name: str) -> str:
     if not name:
         return name
     # Экранируем основные HTML-сущности
-    return (name
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-            .replace("'", "&#x27;"))
+    return (
+        name.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#x27;")
+    )
 
 
 @dataclass
 class CircuitBreakerState:
     """Состояние circuit breaker для внешнего API."""
+
     failure_count: int = 0
     success_count: int = 0  # Явный счётчик успехов для half-open состояния
     last_failure_time: Optional[float] = None
@@ -84,7 +96,11 @@ class CircuitBreakerState:
             "total_failures": self.total_failures,
             "total_successes": self.total_successes,
             "failure_rate": self.total_failures / max(self.total_requests, 1),
-            "last_state_change": datetime.fromtimestamp(self.last_state_change).isoformat() if self.last_state_change else None,
+            "last_state_change": (
+                datetime.fromtimestamp(self.last_state_change).isoformat()
+                if self.last_state_change
+                else None
+            ),
         }
 
 
@@ -108,15 +124,13 @@ class MarketplaceService:
         """
         self.settings = settings
         self._cache: TTLCache = TTLCache(
-            maxsize=settings.CACHE_MAX_SIZE,
-            ttl=settings.CACHE_TTL_SECONDS
+            maxsize=settings.CACHE_MAX_SIZE, ttl=settings.CACHE_TTL_SECONDS
         )
         self._cache_key = "marketplace_data"
         self._lock = asyncio.Lock()
         self._http_client: Optional[httpx.AsyncClient] = None
         self._circuit_breaker = CircuitBreakerState(
-            state="closed",
-            last_state_change=time.time()
+            state="closed", last_state_change=time.time()
         )
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -142,6 +156,7 @@ class MarketplaceService:
             bool: True если запрос разрешён, False если circuit open
         """
         import time
+
         cb = self._circuit_breaker
         current_time = time.time()
 
@@ -184,6 +199,7 @@ class MarketplaceService:
     def _record_failure(self) -> None:
         """Записывает неудачный запрос в circuit breaker."""
         import time
+
         cb = self._circuit_breaker
         cb.total_requests += 1
         cb.total_failures += 1
@@ -218,15 +234,20 @@ class MarketplaceService:
                 entry: CacheEntry = self._cache[self._cache_key]
                 age = (_utcnow() - entry.timestamp).total_seconds()
                 logger.info(f"Кэш hit (возраст: {age:.1f}с)")
+                marketplace_offers_fetched_total.labels(status="cache_hit").inc()
+                marketplace_cache_age_seconds.set(age)
                 return entry.data
 
         # Проверка circuit breaker перед запросом
         if not self._check_circuit_breaker():
             logger.warning("Circuit breaker открыт - запрос к API заблокирован")
+            marketplace_offers_fetched_total.labels(status="failure").inc()
             # Возвращаем устаревший кэш если есть
             if self._cache_key in self._cache:
                 entry: CacheEntry = self._cache[self._cache_key]
-                logger.warning(f"Возвращаем устаревший кэш (возраст: {(_utcnow() - entry.timestamp).total_seconds():.1f}с)")
+                logger.warning(
+                    f"Возвращаем устаревший кэш (возраст: {(_utcnow() - entry.timestamp).total_seconds():.1f}с)"
+                )
                 return entry.data
             # Критическая ошибка - нет кэша и API недоступен
             raise RuntimeError(
@@ -235,43 +256,85 @@ class MarketplaceService:
             )
 
         # Получение данных из API
+        start_time = time.time()
         try:
             client = await self._get_client()
             response = await client.get(self.settings.EXTERNAL_API_URL)
             response.raise_for_status()
             data = response.json()
 
+            # Запись метрик успешного запроса
+            external_api_requests_total.labels(
+                api="marketplace", status="success"
+            ).inc()
+            external_api_request_duration_seconds.labels(api="marketplace").observe(
+                time.time() - start_time
+            )
+
             if not isinstance(data, list):
                 logger.error(f"Ожидался список, получено: {type(data)}")
                 self._record_failure()
+                marketplace_offers_fetched_total.labels(status="failure").inc()
+                external_api_requests_total.labels(
+                    api="marketplace", status="failure"
+                ).inc()
                 return []
 
             # Сохранение в кэш
             async with self._lock:
                 self._cache[self._cache_key] = CacheEntry(
-                    data=data,
-                    timestamp=_utcnow()
+                    data=data, timestamp=_utcnow()
                 )
 
             self._record_success()
+            marketplace_offers_fetched_total.labels(status="success").inc()
+            marketplace_offers_count.labels(type="total").set(len(data))
             logger.info(f"Данные получены из API: {len(data)} пользователей")
             return data
 
         except httpx.TimeoutException:
             logger.error("Timeout при запросе к внешнему API")
             self._record_failure()
+            marketplace_offers_fetched_total.labels(status="failure").inc()
+            external_api_requests_total.labels(
+                api="marketplace", status="failure"
+            ).inc()
+            external_api_request_duration_seconds.labels(api="marketplace").observe(
+                time.time() - start_time
+            )
             return []
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP ошибка от внешней API: {e.response.status_code}")
             self._record_failure()
+            marketplace_offers_fetched_total.labels(status="failure").inc()
+            external_api_requests_total.labels(
+                api="marketplace", status="failure"
+            ).inc()
+            external_api_request_duration_seconds.labels(api="marketplace").observe(
+                time.time() - start_time
+            )
             return []
         except httpx.RequestError as e:
             logger.error(f"Ошибка запроса к внешнему API: {e}")
             self._record_failure()
+            marketplace_offers_fetched_total.labels(status="failure").inc()
+            external_api_requests_total.labels(
+                api="marketplace", status="failure"
+            ).inc()
+            external_api_request_duration_seconds.labels(api="marketplace").observe(
+                time.time() - start_time
+            )
             return []
         except Exception as e:
             logger.error(f"Неожиданная ошибка: {e}")
             self._record_failure()
+            marketplace_offers_fetched_total.labels(status="failure").inc()
+            external_api_requests_total.labels(
+                api="marketplace", status="failure"
+            ).inc()
+            external_api_request_duration_seconds.labels(api="marketplace").observe(
+                time.time() - start_time
+            )
             return []
 
     def clear_cache(self) -> bool:
@@ -300,6 +363,17 @@ class MarketplaceService:
             dict: Метрики для мониторинга
         """
         cache_age = self.get_cache_age()
+
+        # Обновляем Prometheus метрики
+        if cache_age is not None:
+            marketplace_cache_age_seconds.set(cache_age)
+
+        # Circuit breaker state: 0=closed, 1=open, 2=half-open
+        cb_state_map = {"closed": 0, "open": 1, "half-open": 2}
+        cb_state = cb_state_map.get(self._circuit_breaker.state, 0)
+        marketplace_circuit_breaker_state.set(cb_state)
+        external_api_circuit_breaker.labels(api="marketplace").set(cb_state)
+
         return {
             "circuit_breaker": self._circuit_breaker.get_metrics(),
             "cache": {

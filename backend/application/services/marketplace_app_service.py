@@ -5,11 +5,11 @@ Marketplace application service.
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
+from application.dtos import LavkaDetailDTO, LavkaItemDTO, LavkaSummaryDTO, OfferDTO
 from application.interfaces.external import IMarketplaceAPI
 from application.interfaces.repositories import IUserRepository
-from application.dtos import OfferDTO, LavkaSummaryDTO, LavkaDetailDTO, LavkaItemDTO
 from core.enums.offer_type import OfferType
 
 logger = logging.getLogger(__name__)
@@ -91,17 +91,19 @@ class MarketplaceAppService:
                         if search_lower and search_lower not in item_name.lower():
                             continue
 
-                        offers.append(OfferDTO(
-                            type=OfferType.SELL.value,
-                            item_id=parsed_id,
-                            item_name=item_name,
-                            price=float(prices_sell[i]),
-                            count=int(counts_sell[i]),
-                            username=username,
-                            lavka_uid=lavka_uid,
-                            server_id=user_server,
-                            user_status=user_status,
-                        ))
+                        offers.append(
+                            OfferDTO(
+                                type=OfferType.SELL.value,
+                                item_id=parsed_id,
+                                item_name=item_name,
+                                price=float(prices_sell[i]),
+                                count=int(counts_sell[i]),
+                                username=username,
+                                lavka_uid=lavka_uid,
+                                server_id=user_server,
+                                user_status=user_status,
+                            )
+                        )
                     except (ValueError, TypeError, IndexError):
                         continue
 
@@ -124,17 +126,19 @@ class MarketplaceAppService:
                         if search_lower and search_lower not in item_name.lower():
                             continue
 
-                        offers.append(OfferDTO(
-                            type=OfferType.BUY.value,
-                            item_id=parsed_id,
-                            item_name=item_name,
-                            price=float(prices_buy[i]),
-                            count=int(counts_buy[i]),
-                            username=username,
-                            lavka_uid=lavka_uid,
-                            server_id=user_server,
-                            user_status=user_status,
-                        ))
+                        offers.append(
+                            OfferDTO(
+                                type=OfferType.BUY.value,
+                                item_id=parsed_id,
+                                item_name=item_name,
+                                price=float(prices_buy[i]),
+                                count=int(counts_buy[i]),
+                                username=username,
+                                lavka_uid=lavka_uid,
+                                server_id=user_server,
+                                user_status=user_status,
+                            )
+                        )
                     except (ValueError, TypeError, IndexError):
                         continue
 
@@ -166,7 +170,8 @@ class MarketplaceAppService:
 
         # Предварительная фильтрация по серверу
         filtered_users = (
-            users_data if server_id is None
+            users_data
+            if server_id is None
             else [u for u in users_data if u.get("serverId") == server_id]
         )
 
@@ -199,17 +204,19 @@ class MarketplaceAppService:
                         if search_lower and search_lower not in item_name.lower():
                             continue
 
-                        sell_offers.append(OfferDTO(
-                            type=OfferType.SELL.value,
-                            item_id=parsed_id,
-                            item_name=item_name,
-                            price=float(prices_sell[i]),
-                            count=int(counts_sell[i]),
-                            username=username,
-                            lavka_uid=lavka_uid,
-                            server_id=user_server,
-                            user_status=user_status,
-                        ))
+                        sell_offers.append(
+                            OfferDTO(
+                                type=OfferType.SELL.value,
+                                item_id=parsed_id,
+                                item_name=item_name,
+                                price=float(prices_sell[i]),
+                                count=int(counts_sell[i]),
+                                username=username,
+                                lavka_uid=lavka_uid,
+                                server_id=user_server,
+                                user_status=user_status,
+                            )
+                        )
                     except (ValueError, TypeError, IndexError):
                         continue
 
@@ -232,17 +239,19 @@ class MarketplaceAppService:
                         if search_lower and search_lower not in item_name.lower():
                             continue
 
-                        buy_offers.append(OfferDTO(
-                            type=OfferType.BUY.value,
-                            item_id=parsed_id,
-                            item_name=item_name,
-                            price=float(prices_buy[i]),
-                            count=int(counts_buy[i]),
-                            username=username,
-                            lavka_uid=lavka_uid,
-                            server_id=user_server,
-                            user_status=user_status,
-                        ))
+                        buy_offers.append(
+                            OfferDTO(
+                                type=OfferType.BUY.value,
+                                item_id=parsed_id,
+                                item_name=item_name,
+                                price=float(prices_buy[i]),
+                                count=int(counts_buy[i]),
+                                username=username,
+                                lavka_uid=lavka_uid,
+                                server_id=user_server,
+                                user_status=user_status,
+                            )
+                        )
                     except (ValueError, TypeError, IndexError):
                         continue
 
@@ -259,8 +268,8 @@ class MarketplaceAppService:
         total_sell = len(sell_offers)
 
         # Применяем пагинацию
-        buy_offers = buy_offers[offset:offset + limit]
-        sell_offers = sell_offers[offset:offset + limit]
+        buy_offers = buy_offers[offset : offset + limit]
+        sell_offers = sell_offers[offset : offset + limit]
 
         return {
             "buy_offers": buy_offers,
@@ -284,7 +293,9 @@ class MarketplaceAppService:
         from services.lavka_service import LavkaService
 
         users_data = await self.fetch_data()
-        lavka_service = LavkaService(self, None)  # Передаём self как marketplace_service
+        lavka_service = LavkaService(
+            self, None
+        )  # Передаём self как marketplace_service
 
         # Фильтрация по серверу
         server_users = [u for u in users_data if u.get("serverId") == server_id]
@@ -301,14 +312,16 @@ class MarketplaceAppService:
             items_sell = user_data.get("items_sell") or []
             items_buy = user_data.get("items_buy") or []
 
-            lavkas.append(LavkaSummaryDTO(
-                lavka_uid=lavka_uid,
-                username=username,
-                server_id=server_id,
-                sell_count=len(items_sell),
-                buy_count=len(items_buy),
-                total_items=len(items_sell) + len(items_buy),
-            ))
+            lavkas.append(
+                LavkaSummaryDTO(
+                    lavka_uid=lavka_uid,
+                    username=username,
+                    server_id=server_id,
+                    sell_count=len(items_sell),
+                    buy_count=len(items_buy),
+                    total_items=len(items_sell) + len(items_buy),
+                )
+            )
 
         return lavkas
 
@@ -365,13 +378,15 @@ class MarketplaceAppService:
                             continue
 
                         item_name = LavkaService.get_item_name(parsed_id)
-                        sell_items.append(LavkaItemDTO(
-                            item_id=parsed_id,
-                            item_name=item_name,
-                            price=float(prices_sell[i]),
-                            count=int(counts_sell[i]),
-                            type=OfferType.SELL.value,
-                        ))
+                        sell_items.append(
+                            LavkaItemDTO(
+                                item_id=parsed_id,
+                                item_name=item_name,
+                                price=float(prices_sell[i]),
+                                count=int(counts_sell[i]),
+                                type=OfferType.SELL.value,
+                            )
+                        )
                     except (ValueError, TypeError, IndexError):
                         continue
 
@@ -391,13 +406,15 @@ class MarketplaceAppService:
                             continue
 
                         item_name = LavkaService.get_item_name(parsed_id)
-                        buy_items.append(LavkaItemDTO(
-                            item_id=parsed_id,
-                            item_name=item_name,
-                            price=float(prices_buy[i]),
-                            count=int(counts_buy[i]),
-                            type=OfferType.BUY.value,
-                        ))
+                        buy_items.append(
+                            LavkaItemDTO(
+                                item_id=parsed_id,
+                                item_name=item_name,
+                                price=float(prices_buy[i]),
+                                count=int(counts_buy[i]),
+                                type=OfferType.BUY.value,
+                            )
+                        )
                     except (ValueError, TypeError, IndexError):
                         continue
 

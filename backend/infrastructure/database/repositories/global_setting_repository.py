@@ -2,8 +2,8 @@
 GlobalSetting repository implementation.
 """
 
-from typing import Optional, List, Any
 from datetime import datetime, timezone
+from typing import Any, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,10 +23,20 @@ class GlobalSettingRepository(IGlobalSettingRepository):
             select(GlobalSetting).where(GlobalSetting.key == key)
         )
         setting = result.scalar_one_or_none()
-        return {"key": setting.key, "value": setting.value, "updated_at": setting.updated_at} if setting else None
+        return (
+            {
+                "key": setting.key,
+                "value": setting.value,
+                "updated_at": setting.updated_at,
+            }
+            if setting
+            else None
+        )
 
     async def get_all(self) -> List[Any]:
-        result = await self.session.execute(select(GlobalSetting).order_by(GlobalSetting.key))
+        result = await self.session.execute(
+            select(GlobalSetting).order_by(GlobalSetting.key)
+        )
         return result.scalars().all()
 
     async def upsert(self, key: str, value: dict) -> GlobalSetting:
@@ -50,7 +60,9 @@ class GlobalSettingRepository(IGlobalSettingRepository):
         result = await self.get_by_key("maintenance_mode")
         if not result:
             return {"enabled": False, "message": "", "estimated_end": None}
-        return result.get("value", {"enabled": False, "message": "", "estimated_end": None})
+        return result.get(
+            "value", {"enabled": False, "message": "", "estimated_end": None}
+        )
 
     async def set_maintenance_status(
         self,
@@ -58,8 +70,11 @@ class GlobalSettingRepository(IGlobalSettingRepository):
         message: str,
         estimated_end: Optional[str],
     ) -> None:
-        await self.upsert("maintenance_mode", {
-            "enabled": enabled,
-            "message": message,
-            "estimated_end": estimated_end,
-        })
+        await self.upsert(
+            "maintenance_mode",
+            {
+                "enabled": enabled,
+                "message": message,
+                "estimated_end": estimated_end,
+            },
+        )

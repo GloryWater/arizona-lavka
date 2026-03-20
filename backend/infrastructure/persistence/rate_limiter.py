@@ -14,6 +14,7 @@ from config import Settings
 
 try:
     import redis.asyncio as aioredis
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -23,6 +24,7 @@ except ImportError:
 @dataclass
 class RateLimitResult:
     """Результат проверки rate limit."""
+
     allowed: bool
     remaining: int
     reset_after: float
@@ -66,14 +68,17 @@ class InMemoryRateLimiter(RateLimiterBase):
             # Удаляем старые записи за пределами окна
             window_start = current_time - self.window_seconds
             self._store[identifier] = [
-                ts for ts in self._store[identifier]
-                if ts > window_start
+                ts for ts in self._store[identifier] if ts > window_start
             ]
 
             request_count = len(self._store[identifier])
 
             if request_count >= self.limit:
-                oldest_timestamp = min(self._store[identifier]) if self._store[identifier] else current_time
+                oldest_timestamp = (
+                    min(self._store[identifier])
+                    if self._store[identifier]
+                    else current_time
+                )
                 reset_after = (oldest_timestamp + self.window_seconds) - current_time
                 return RateLimitResult(
                     allowed=False,
@@ -151,7 +156,9 @@ class RedisRateLimiter(RateLimiterBase):
                 oldest = await self.redis.zrange(key, 0, 0, withscores=True)
                 if oldest:
                     oldest_timestamp = oldest[0][1]
-                    reset_after = (oldest_timestamp + self.window_seconds) - current_time
+                    reset_after = (
+                        oldest_timestamp + self.window_seconds
+                    ) - current_time
                 else:
                     reset_after = self.window_seconds
 
@@ -205,7 +212,7 @@ async def get_rate_limiter() -> RateLimiterBase:
             return _rate_limiter_instance
 
         settings = get_settings()
-        redis_url = getattr(settings, 'REDIS_URL', None)
+        redis_url = getattr(settings, "REDIS_URL", None)
 
         # Пробуем создать Redis limiter если доступен
         if redis_url and REDIS_AVAILABLE:

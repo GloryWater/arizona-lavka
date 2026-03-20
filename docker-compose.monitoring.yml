@@ -1,0 +1,139 @@
+# =============================================================================
+# Arizona Lavka Marketplace - Monitoring Stack Docker Compose
+# =============================================================================
+# Monitoring: Prometheus + Grafana + Node Exporter
+#
+# Usage:
+#   docker compose -f docker-compose.monitoring.yml up -d
+#   docker compose -f docker-compose.monitoring.yml down
+#
+# Access:
+#   Prometheus: http://localhost:9090
+#   Grafana:    http://localhost:3000 (admin/admin)
+# =============================================================================
+
+services:
+  # =============================================================================
+  # Prometheus - Metrics Collection & Alerting
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: arizonalavka-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - arizonalavka-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.arizonalavka.service=prometheus"
+
+  # =============================================================================
+  # Grafana - Visualization & Dashboards
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: arizonalavka-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "http://localhost:3000"
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - arizonalavka-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.arizonalavka.service=grafana"
+
+  # =============================================================================
+  # Node Exporter - Host Metrics (CPU, Memory, Disk, Network)
+  # =============================================================================
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: arizonalavka-node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - '/:/host:ro,rslave'
+    ports:
+      - "127.0.0.1:9100:9100"
+    networks:
+      - arizonalavka-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.arizonalavka.service=node-exporter"
+
+  # =============================================================================
+  # Postgres Exporter - PostgreSQL Metrics (опционально)
+  # =============================================================================
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: arizonalavka-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://arizonalavka:srGH8aQRVaFqM9XBxfd@postgres:5432/arizonalavka?sslmode=disable"
+    ports:
+      - "127.0.0.1:9187:9187"
+    networks:
+      - arizonalavka-network
+    depends_on:
+      - postgres
+    labels:
+      - "com.arizonalavka.service=postgres-exporter"
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  arizonalavka-network:
+    external: true
+    name: arizonalavka_default
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  prometheus_data:
+    driver: local
+    name: arizonalavka-prometheus-data
+  grafana_data:
+    driver: local
+    name: arizonalavka-grafana-data

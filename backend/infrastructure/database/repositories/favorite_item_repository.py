@@ -2,13 +2,13 @@
 FavoriteItem repository implementation.
 """
 
-from typing import Optional, List
+from typing import List, Optional
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.entities.favorite import FavoriteItemEntity
 from application.interfaces.repositories import IFavoriteItemRepository
+from core.entities.favorite import FavoriteItemEntity
 from infrastructure.database.models import FavoriteItem
 
 
@@ -83,3 +83,21 @@ class FavoriteItemRepository(IFavoriteItemRepository):
         await self.session.delete(fav)
         await self.session.commit()
         return True
+
+    async def update(self, favorite: FavoriteItemEntity) -> FavoriteItemEntity:
+        """Обновляет избранный предмет."""
+        db_fav = await self.session.get(FavoriteItem, favorite.id)
+        if not db_fav:
+            raise ValueError(f"Favorite item with id {favorite.id} not found")
+
+        # Обновляем поля
+        for field, value in vars(favorite).items():
+            if hasattr(db_fav, field) and field not in [
+                "id",
+                "created_at",
+            ]:  # Не обновляем id и created_at
+                setattr(db_fav, field, value)
+
+        await self.session.flush()
+        await self.session.refresh(db_fav)
+        return self._to_entity(db_fav)

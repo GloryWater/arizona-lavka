@@ -1,0 +1,37 @@
+# =============================================================================
+# Grafana Datasources Provisioning
+# =============================================================================
+# Автоматическая настройка источников данных Grafana
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  # ---------------------------------------------------------------------------
+  # Prometheus - основной источник данных для метрик
+  # ---------------------------------------------------------------------------
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+    
+  # ---------------------------------------------------------------------------
+  # Prometheus Backend - отдельный datasource для backend метрик
+  # ---------------------------------------------------------------------------
+  - name: Prometheus-Backend
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true
+    jsonData:
+      timeInterval: "10s"
+      queryTimeout: "30s"
+      httpMethod: "POST"
+    uid: backend-prometheus

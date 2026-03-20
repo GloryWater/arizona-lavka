@@ -1,74 +1,170 @@
+# =============================================================================
+# ARIZONA LAVKA MARKETPLACE - DOCKER COMPOSE
+# =============================================================================
+# Usage:
+#   docker compose up -d              # Start all services
+#   docker compose down               # Stop all services
+#   docker compose logs -f            # View logs
+#   docker compose ps                 # Check status
+#
+# Ports:
+#   Frontend:  http://localhost:8080 (or https://lavka.glorysyntax.live:8080)
+#   Backend:   http://localhost:8000
+#   Database:  localhost:7432
+# =============================================================================
+
 services:
+  # =============================================================================
   # PostgreSQL Database
+  # =============================================================================
   postgres:
     image: postgres:17-alpine
     container_name: arizonalavka-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: arizonalavka
-      POSTGRES_PASSWORD: arizonalavka_password
+      POSTGRES_PASSWORD: srGH8aQRVaFqM9XBxfd
       POSTGRES_DB: arizonalavka
     ports:
       - "127.0.0.1:7432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - arizonalavka-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U arizonalavka -d arizonalavka"]
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: unless-stopped
+      start_period: 30s
 
-  # Backend API
+  # =============================================================================
+  # Backend API (FastAPI)
+  # =============================================================================
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      cache_from:
-        - python:3.12-slim
+      target: production
     container_name: arizonalavka-backend
+    restart: unless-stopped
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8000
+      --proxy-headers
+      --forwarded-allow-ips="*"
     ports:
       - "127.0.0.1:8000:8000"
     environment:
+      # Database
       POSTGRES_USER: arizonalavka
-      POSTGRES_PASSWORD: arizonalavka_password
+      POSTGRES_PASSWORD: srGH8aQRVaFqM9XBxfd
       POSTGRES_DB: arizonalavka
       POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      JWT_SECRET_KEY: bXxFxpmtJIZXXatkIjBEaDhLyrqziVTYfafds
-      DEBUG: "true"
-      CORS_ORIGINS: https://lavka.glorysyntax.live,http://lavka.glorysyntax.live
+      POSTGRES_PORT: "5432"
+      # JWT
+      JWT_SECRET_KEY: 61b8d69611aa704f6fb0e19e9e2930aaa8cf98a4788712c6429549314bb39ff5
+      # App settings
+      PRODUCTION: "true"
+      DEBUG: "false"
+      HOST: 0.0.0.0
+      PORT: 8000
+      # CORS
+      CORS_ORIGINS: https://lavka.glorysyntax.live,http://lavka.glorysyntax.live,http://localhost:8080
+      # Security
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      MAX_LOGIN_ATTEMPTS: "5"
+      LOCKOUT_DURATION_MINUTES: "15"
+      # External API
+      EXTERNAL_API_URL: https://api.arz.market/api/getSelectedMarketplace/-1
+      API_TIMEOUT_SECONDS: "30"
+      # Cache
+      CACHE_TTL_SECONDS: "30"
+      CACHE_MAX_SIZE: "100"
+      # Rate limiting
+      RATE_LIMIT_PER_MINUTE: "120"
+      # Turnstile
+      CLOUDFLARE_TURNSTILE_SITE_KEY: 0x4AAAAAACrUZmGD4_pjJq_a
+      CLOUDFLARE_TURNSTILE_SECRET_KEY: 0x4AAAAAACrUZuyg5ahuUkWhwFdDr4wko78
+      # Email
+      GMAIL_USERNAME: arz.lavka@gmail.com
+      GMAIL_APP_PASSWORD: nykgxzfthbhdqxhr
+      FRONTEND_URL: http://localhost:8080
+      # Email verification
+      EMAIL_VERIFICATION_EXPIRY_HOURS: "24"
+      EMAIL_VERIFICATION_CODE_LENGTH: "6"
+      EMAIL_VERIFICATION_MAX_ATTEMPTS: "3"
+      EMAIL_VERIFICATION_COOLDOWN_MINUTES: "5"
     volumes:
-      - ./data:/data:ro
+      - ./data:/app/data:ro
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - arizonalavka-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # =============================================================================
+  # Redis (Caching and Sessions)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: arizonalavka-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # =============================================================================
   # Frontend (Nginx)
+  # =============================================================================
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      cache_from:
-        - node:20-alpine
-        - nginx:alpine
+      target: production
     container_name: arizonalavka-frontend
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80"
+    environment:
+      VITE_API_URL: https://lavka.glorysyntax.live/api
+      VITE_CLOUDFLARE_TURNSTILE_SITE_KEY:
+      VITE_APP_NAME: Arizona Lavka Marketplace
+      VITE_APP_VERSION: 5.0.0
     depends_on:
       - backend
-    networks:
-      - arizonalavka-network
-    restart: unless-stopped
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
+# =============================================================================
+# Networks
+# =============================================================================
 networks:
-  arizonalavka-network:
-    driver: bridge
+  default:
+    name: arizonalavka_default
 
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local

@@ -6,15 +6,15 @@
 """
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from config import SERVER_NAMES, get_server_name
-from dependencies import get_marketplace_service, get_lavka_service
-from models import OfferType, OffersResponse, Offer, ServerInfo
-from services.marketplace_service import MarketplaceService
+from dependencies import get_lavka_service, get_marketplace_service
+from models import Offer, OffersResponse, OfferType, ServerInfo
 from services.lavka_service import LavkaService
+from services.marketplace_service import MarketplaceService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -67,17 +67,19 @@ def _parse_offers(
                     if search_lower and search_lower not in item_name.lower():
                         continue
 
-                    offers.append(Offer(
-                        type=OfferType.SELL,
-                        itemId=parsed_id,
-                        itemName=item_name,
-                        price=float(prices_sell[i]),
-                        count=int(counts_sell[i]),
-                        username=username,
-                        lavkaUid=lavka_uid,
-                        serverId=user_server,
-                        userStatus=user_status,
-                    ))
+                    offers.append(
+                        Offer(
+                            type=OfferType.SELL,
+                            itemId=parsed_id,
+                            itemName=item_name,
+                            price=float(prices_sell[i]),
+                            count=int(counts_sell[i]),
+                            username=username,
+                            lavkaUid=lavka_uid,
+                            serverId=user_server,
+                            userStatus=user_status,
+                        )
+                    )
                 except (ValueError, TypeError, IndexError):
                     continue
 
@@ -100,17 +102,19 @@ def _parse_offers(
                     if search_lower and search_lower not in item_name.lower():
                         continue
 
-                    offers.append(Offer(
-                        type=OfferType.BUY,
-                        itemId=parsed_id,
-                        itemName=item_name,
-                        price=float(prices_buy[i]),
-                        count=int(counts_buy[i]),
-                        username=username,
-                        lavkaUid=lavka_uid,
-                        serverId=user_server,
-                        userStatus=user_status,
-                    ))
+                    offers.append(
+                        Offer(
+                            type=OfferType.BUY,
+                            itemId=parsed_id,
+                            itemName=item_name,
+                            price=float(prices_buy[i]),
+                            count=int(counts_buy[i]),
+                            username=username,
+                            lavkaUid=lavka_uid,
+                            serverId=user_server,
+                            userStatus=user_status,
+                        )
+                    )
                 except (ValueError, TypeError, IndexError):
                     continue
 
@@ -154,7 +158,8 @@ def _parse_offers_split(
 
     # Предварительная фильтрация по серверу для производительности
     filtered_users = (
-        users_data if server_id is None
+        users_data
+        if server_id is None
         else [u for u in users_data if u.get("serverId") == server_id]
     )
 
@@ -171,7 +176,9 @@ def _parse_offers_split(
 
         # Логирование для отладки (только первый пользователь)
         if len(sell_offers) == 0 and len(buy_offers) == 0:
-            logger.debug(f"User: {username}, LavkaUid: {lavka_uid}, Server: {user_server}")
+            logger.debug(
+                f"User: {username}, LavkaUid: {lavka_uid}, Server: {user_server}"
+            )
 
         # Предметы на продажу (SELL - игрок продает)
         items_sell = user_data.get("items_sell") or []
@@ -192,17 +199,19 @@ def _parse_offers_split(
                     if search_lower and search_lower not in item_name.lower():
                         continue
 
-                    sell_offers.append(Offer(
-                        type=OfferType.SELL,
-                        itemId=parsed_id,
-                        itemName=item_name,
-                        price=float(prices_sell[i]),
-                        count=int(counts_sell[i]),
-                        username=username,
-                        lavkaUid=lavka_uid,
-                        serverId=user_server,
-                        userStatus=user_status,
-                    ))
+                    sell_offers.append(
+                        Offer(
+                            type=OfferType.SELL,
+                            itemId=parsed_id,
+                            itemName=item_name,
+                            price=float(prices_sell[i]),
+                            count=int(counts_sell[i]),
+                            username=username,
+                            lavkaUid=lavka_uid,
+                            serverId=user_server,
+                            userStatus=user_status,
+                        )
+                    )
                 except (ValueError, TypeError, IndexError):
                     continue
 
@@ -225,17 +234,19 @@ def _parse_offers_split(
                     if search_lower and search_lower not in item_name.lower():
                         continue
 
-                    buy_offers.append(Offer(
-                        type=OfferType.BUY,
-                        itemId=parsed_id,
-                        itemName=item_name,
-                        price=float(prices_buy[i]),
-                        count=int(counts_buy[i]),
-                        username=username,
-                        lavkaUid=lavka_uid,
-                        serverId=user_server,
-                        userStatus=user_status,
-                    ))
+                    buy_offers.append(
+                        Offer(
+                            type=OfferType.BUY,
+                            itemId=parsed_id,
+                            itemName=item_name,
+                            price=float(prices_buy[i]),
+                            count=int(counts_buy[i]),
+                            username=username,
+                            lavkaUid=lavka_uid,
+                            serverId=user_server,
+                            userStatus=user_status,
+                        )
+                    )
                 except (ValueError, TypeError, IndexError):
                     continue
 
@@ -253,8 +264,8 @@ def _parse_offers_split(
     total_sell = len(sell_offers)
 
     # Применяем пагинацию к каждому списку отдельно
-    buy_offers = buy_offers[offset:offset + limit]
-    sell_offers = sell_offers[offset:offset + limit]
+    buy_offers = buy_offers[offset : offset + limit]
+    sell_offers = sell_offers[offset : offset + limit]
 
     return {
         "buy_offers": buy_offers,
@@ -293,9 +304,15 @@ async def get_items():
 @router.get("/offers", response_model=OffersResponse)
 async def get_offers(
     marketplace_service: MarketplaceService = Depends(get_marketplace_service),
-    search_term: str = Query(default="", max_length=100, description="Поисковый запрос"),
-    server_id: Optional[int] = Query(default=None, ge=-1, le=32, description="ID сервера"),
-    sort_order: str = Query(default="none", pattern="^(asc|desc|none)$", description="Сортировка"),
+    search_term: str = Query(
+        default="", max_length=100, description="Поисковый запрос"
+    ),
+    server_id: Optional[int] = Query(
+        default=None, ge=-1, le=32, description="ID сервера"
+    ),
+    sort_order: str = Query(
+        default="none", pattern="^(asc|desc|none)$", description="Сортировка"
+    ),
 ):
     """Получить предложения marketplace с фильтрацией."""
     users_data = await marketplace_service.fetch_data()
@@ -320,9 +337,15 @@ async def get_offers(
 @router.get("/search")
 async def search_items(
     marketplace_service: MarketplaceService = Depends(get_marketplace_service),
-    search_term: str = Query(default="", max_length=100, description="Поисковый запрос"),
-    server_id: Optional[int] = Query(default=None, ge=-1, le=32, description="ID сервера (-1 = все серверы)"),
-    sort_order: str = Query(default="desc", pattern="^(asc|desc|none)$", description="Сортировка по цене"),
+    search_term: str = Query(
+        default="", max_length=100, description="Поисковый запрос"
+    ),
+    server_id: Optional[int] = Query(
+        default=None, ge=-1, le=32, description="ID сервера (-1 = все серверы)"
+    ),
+    sort_order: str = Query(
+        default="desc", pattern="^(asc|desc|none)$", description="Сортировка по цене"
+    ),
     limit: int = Query(default=50, ge=10, le=200, description="Лимит результатов"),
     offset: int = Query(default=0, ge=0, description="Смещение"),
 ):
@@ -379,7 +402,9 @@ async def get_lavkas(
 @router.get("/lavkas/{lavka_uid}")
 async def get_lavka_detail(
     lavka_uid: str,
-    server_id: Optional[int] = Query(default=None, ge=0, le=32, description="ID сервера для точного поиска"),
+    server_id: Optional[int] = Query(
+        default=None, ge=0, le=32, description="ID сервера для точного поиска"
+    ),
     lavka_service: LavkaService = Depends(get_lavka_service),
 ):
     """Получить детальную информацию о лавке."""

@@ -3,13 +3,13 @@ Repository interfaces - абстракции для доступа к данны
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, List, Any
 from datetime import datetime
+from typing import Any, List, Optional
 
-from core.entities.user import UserEntity
 from core.entities.config import ConfigHistoryEntity
 from core.entities.favorite import FavoriteItemEntity
 from core.entities.price_alert import PriceAlertEntity
+from core.entities.user import UserEntity
 
 
 class IUserRepository(ABC):
@@ -40,7 +40,9 @@ class IUserRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_by_username_or_email(self, username_or_email: str) -> Optional[UserEntity]:
+    async def get_by_username_or_email(
+        self, username_or_email: str
+    ) -> Optional[UserEntity]:
         """Получает пользователя по username или email."""
         pass
 
@@ -146,6 +148,10 @@ class IFavoriteItemRepository(ABC):
         pass
 
     @abstractmethod
+    async def update(self, favorite: FavoriteItemEntity) -> FavoriteItemEntity:
+        pass
+
+    @abstractmethod
     async def delete(self, favorite_id: int) -> bool:
         pass
 
@@ -167,6 +173,10 @@ class IPriceAlertRepository(ABC):
 
     @abstractmethod
     async def create(self, alert: PriceAlertEntity) -> PriceAlertEntity:
+        pass
+
+    @abstractmethod
+    async def update(self, alert: PriceAlertEntity) -> PriceAlertEntity:
         pass
 
     @abstractmethod

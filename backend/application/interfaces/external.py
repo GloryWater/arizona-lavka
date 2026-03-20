@@ -3,7 +3,7 @@ External service interfaces.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Any
+from typing import Any, List
 
 
 class IMarketplaceAPI(ABC):
