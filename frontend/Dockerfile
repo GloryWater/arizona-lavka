@@ -1,8 +1,28 @@
 # =============================================================================
 # ARIZONA LAVKA MARKETPLACE - FRONTEND DOCKERFILE
 # =============================================================================
-# Production - Uses pre-built dist folder (run 'npx vite build' before building)
+# Multi-stage build: compile Vite app, then serve static assets with nginx
 # =============================================================================
+
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+ARG VITE_API_URL=/api
+ARG VITE_CLOUDFLARE_TURNSTILE_SITE_KEY=
+ARG VITE_APP_NAME="Arizona Lavka Marketplace"
+ARG VITE_APP_VERSION=5.0.0
+
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_CLOUDFLARE_TURNSTILE_SITE_KEY=$VITE_CLOUDFLARE_TURNSTILE_SITE_KEY \
+    VITE_APP_NAME=$VITE_APP_NAME \
+    VITE_APP_VERSION=$VITE_APP_VERSION
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
 
 FROM nginx:alpine AS production
 
@@ -22,8 +42,8 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy server nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy pre-built assets from dist folder
-COPY dist /usr/share/nginx/html
+# Copy built assets from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Set proper permissions
 RUN chown -R nginx:nginx /usr/share/nginx/html && \

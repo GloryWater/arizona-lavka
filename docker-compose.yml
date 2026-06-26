@@ -101,7 +101,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -134,13 +134,18 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: production
+      args:
+        VITE_API_URL: /api
+        VITE_CLOUDFLARE_TURNSTILE_SITE_KEY: 0x4AAAAAACrUZmGD4_pjJq_a
+        VITE_APP_NAME: Arizona Lavka Marketplace
+        VITE_APP_VERSION: 5.0.0
     container_name: arizonalavka-frontend
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80"
     environment:
-      VITE_API_URL: https://lavka.glorysyntax.live/api
-      VITE_CLOUDFLARE_TURNSTILE_SITE_KEY:
+      VITE_API_URL: /api
+      VITE_CLOUDFLARE_TURNSTILE_SITE_KEY: 0x4AAAAAACrUZmGD4_pjJq_a
       VITE_APP_NAME: Arizona Lavka Marketplace
       VITE_APP_VERSION: 5.0.0
     depends_on:

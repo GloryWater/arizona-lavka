@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output - built locally before docker build
-# dist/ - include this for docker build
+# Build output
+dist/
 
 # Environment variables
 .env
@@ -44,12 +44,7 @@ docker-compose*.yml
 # Documentation
 *.md
 
-# Config files not needed in runtime (build happens locally)
-vite.config.ts
-tailwind.config.js
-postcss.config.js
-tsconfig.json
-tsconfig.node.json
+# Config files are required by the Docker build stage.
 
 # Scripts
 scripts/
