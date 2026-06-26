@@ -21,6 +21,7 @@ Fullstack marketplace/BFF-сервис для Arizona RP / Arizona Market: React
 
 - [Быстрая демонстрация](#быстрая-демонстрация)
 - [Интерфейс](#интерфейс)
+- [Админ-панель](#админ-панель)
 - [Что показывает демо](#что-показывает-демо)
 - [О проекте](#о-проекте)
 - [Возможности](#возможности)
@@ -71,13 +72,56 @@ Fullstack marketplace/BFF-сервис для Arizona RP / Arizona Market: React
 | <img src="docs/assets/readme/screenshots/06-auth.webp" alt="Экран входа" width="420"> | Экран входа без реальных credentials; видны только placeholder-поля. |
 | <img src="docs/assets/readme/screenshots/10-mobile.webp" alt="Мобильный вид frontend-приложения" width="220"> | Мобильная адаптация marketplace-экрана. |
 
+## Админ-панель
+
+Админ-панель доступна в локальном dev-окружении после авторизации пользователем с ролью `admin`. Скриншоты ниже сделаны с локальной demo-admin учётной записью в dev PostgreSQL БД; реальные пароли, JWT-токены, cookies и приватные ключи в репозиторий не добавляются.
+
+<p align="center">
+  <img src="docs/assets/readme/screenshots/admin/02-admin-dashboard.webp" alt="Arizona Lavka Marketplace - админ-панель" width="900">
+</p>
+
+### Что показывает админ-панель
+
+- dashboard с агрегированной статистикой пользователей, конфигов, DAU/MAU и графиками;
+- управление пользователями и ролями через защищённый admin route;
+- глобальные настройки генерации конфигов;
+- maintenance mode для контролируемого обслуживания сервиса.
+
+### Demo-доступ к админ-панели
+
+Для локальной демонстрации можно создать dev-admin пользователя через guarded script. Пароль передаётся только через environment variables и не должен попадать в git, README, shell history или логи.
+
+```bash
+DEMO_ADMIN_EMAIL="<DEMO_ADMIN_EMAIL>" \
+DEMO_ADMIN_PASSWORD="<DEMO_ADMIN_PASSWORD>" \
+DEMO_ADMIN_USERNAME="admin_demo" \
+docker compose exec -T \
+  -e ALLOW_DEMO_ADMIN_CREATE=1 \
+  -e DEMO_ADMIN_EMAIL \
+  -e DEMO_ADMIN_PASSWORD \
+  -e DEMO_ADMIN_USERNAME \
+  backend python scripts/create_demo_admin.py
+```
+
+> Этот способ предназначен только для локального/dev окружения. В production доступ администратора должен выдаваться через штатные процессы управления пользователями и секретами.
+
+### Скриншоты админской части
+
+| Экран | Что видно |
+| --- | --- |
+| <img src="docs/assets/readme/screenshots/admin/01-admin-login.webp" alt="Локальный вход в admin demo" width="420"> | Экран входа перед авторизацией demo-admin пользователя. |
+| <img src="docs/assets/readme/screenshots/admin/02-admin-dashboard.webp" alt="Admin dashboard" width="420"> | Главный dashboard с метриками пользователей, конфигов и быстрыми действиями. |
+| <img src="docs/assets/readme/screenshots/admin/03-admin-users.webp" alt="Управление пользователями" width="420"> | Раздел пользователей с ролью admin; email замаскирован безопасным placeholder. |
+| <img src="docs/assets/readme/screenshots/admin/04-admin-settings.webp" alt="Настройки админ-панели" width="420"> | Настройки способов генерации конфигов и maintenance mode. |
+
 ## Что показывает демо
 
 1. Пользователь открывает React frontend на `http://localhost:8080`.
 2. Frontend обращается к FastAPI backend через `/api`.
 3. Marketplace UI позволяет выбрать сервер, выполнить поиск и увидеть фактическое состояние данных.
 4. Генератор конфигов показывает параметры будущей генерации без раскрытия секретов и без тестовых credentials.
-5. Backend предоставляет OpenAPI JSON, health endpoints и Prometheus metrics endpoint.
+5. Admin demo flow подтверждает защищённый доступ к `/admin`, `/admin/users` и `/admin/settings`.
+6. Backend предоставляет OpenAPI JSON, health endpoints и Prometheus metrics endpoint.
 
 ## О проекте
 
@@ -752,6 +796,24 @@ npm ci
 cd ..
 node scripts/capture-readme-assets.mjs
 docker compose down
+```
+
+Admin screenshots пересоздаются отдельно после создания локального demo-admin пользователя:
+
+```bash
+DEMO_ADMIN_EMAIL="<DEMO_ADMIN_EMAIL>" \
+DEMO_ADMIN_PASSWORD="<DEMO_ADMIN_PASSWORD>" \
+DEMO_ADMIN_USERNAME="admin_demo" \
+docker compose exec -T \
+  -e ALLOW_DEMO_ADMIN_CREATE=1 \
+  -e DEMO_ADMIN_EMAIL \
+  -e DEMO_ADMIN_PASSWORD \
+  -e DEMO_ADMIN_USERNAME \
+  backend python scripts/create_demo_admin.py
+
+DEMO_ADMIN_EMAIL="<DEMO_ADMIN_EMAIL>" \
+DEMO_ADMIN_PASSWORD="<DEMO_ADMIN_PASSWORD>" \
+node scripts/capture-admin-readme-assets.mjs
 ```
 
 Для monitoring-скриншота можно дополнительно поднять overlay:

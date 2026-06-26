@@ -69,6 +69,8 @@ docker-compose*.yml
 
 # Scripts
 scripts/
+!scripts/
+!scripts/create_demo_admin.py
 
 # Load tests
 ../load_tests/
